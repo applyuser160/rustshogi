@@ -211,6 +211,10 @@ impl Game {
 
         for _ in 0..move_count {
             let moves = self.board.search_moves(self.turn);
+            if moves.is_empty() {
+                break;
+            }
+
             let mut random = Random::new(0, (moves.len() - 1) as u16);
             let amove = &moves[random.generate_one() as usize].clone();
             self.execute_move(amove);

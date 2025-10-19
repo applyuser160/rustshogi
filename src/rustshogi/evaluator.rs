@@ -4,6 +4,7 @@ use super::game::Game;
 use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
+use pyo3::prelude::*;
 use rand;
 use rusqlite::{Connection, Result as SqlResult};
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,7 @@ use std::path::Path;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrainingRecord {
     pub id: i64,
-    pub board_vector: Vec<f32>,
+    pub board: String, // SFEN形式の文字列
     pub white_wins: i32,
     pub black_wins: i32,
     pub total_games: i32,
@@ -22,6 +23,7 @@ pub struct TrainingRecord {
 }
 
 /// 評価関数システム
+#[pyclass]
 pub struct Evaluator {
     db_path: String,
 }
@@ -44,7 +46,7 @@ impl Evaluator {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS training_data (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                board_vector TEXT NOT NULL,
+                board TEXT NOT NULL,
                 white_wins INTEGER DEFAULT 0,
                 black_wins INTEGER DEFAULT 0,
                 total_games INTEGER DEFAULT 0,
@@ -79,13 +81,11 @@ impl Evaluator {
         for i in 0..count {
             let mut game = Game::new();
             let random_board = game.generate_random_board();
-            let board_vector = random_board.to_vector(None);
-            let board_vector_json = serde_json::to_string(&board_vector)
-                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
+            let board_sfen = random_board.to_string();
 
             conn.execute(
-                "INSERT INTO training_data (board_vector) VALUES (?1)",
-                [&board_vector_json],
+                "INSERT INTO training_data (board) VALUES (?1)",
+                [&board_sfen],
             )?;
 
             saved_count += 1;
@@ -114,7 +114,7 @@ impl Evaluator {
     ) -> SqlResult<i32> {
         let conn = self.get_connection()?;
 
-        let query = "SELECT id, board_vector FROM training_data ORDER BY total_games ASC, id ASC";
+        let query = "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC";
         let mut stmt = conn.prepare(query)?;
 
         let mut records: Vec<(i64, String)> = Vec::new();
@@ -123,8 +123,8 @@ impl Evaluator {
         })?;
 
         for row_result in rows {
-            let (id, board_vector_json) = row_result?;
-            records.push((id, board_vector_json));
+            let (id, board_sfen) = row_result?;
+            records.push((id, board_sfen));
             if let Some(max) = max_records {
                 if records.len() >= max {
                     break;
@@ -134,12 +134,10 @@ impl Evaluator {
 
         let mut updated_count = 0;
 
-        for (id, _board_vector_json) in records {
-            // 注意：board_vectorからBoardを完全に復元するのは複雑なため、
-            // ここでは新しいランダム盤面で代用
-            let mut game = Game::new();
-            let random_board = game.generate_random_board();
-            let (white_wins, black_wins) = self.run_random_games(&random_board, trials_per_record);
+        for (id, board_sfen) in records {
+            // SFEN形式からBoardを復元
+            let board = Board::from_sfen(board_sfen);
+            let (white_wins, black_wins) = self.run_random_games(&board, trials_per_record);
 
             conn.execute(
                 "UPDATE training_data
@@ -221,7 +219,7 @@ impl Evaluator {
         let conn = self.get_connection()?;
 
         let mut stmt = conn.prepare(
-            "SELECT board_vector, white_wins, black_wins, total_games
+            "SELECT board, white_wins, black_wins, total_games
              FROM training_data
              WHERE total_games >= ?1
              ORDER BY total_games DESC",
@@ -238,15 +236,15 @@ impl Evaluator {
         })?;
 
         for row_result in rows {
-            let (board_vector_json, white_wins, black_wins, total_games) = row_result?;
-            records.push((board_vector_json, white_wins, black_wins, total_games));
+            let (board_sfen, white_wins, black_wins, total_games) = row_result?;
+            records.push((board_sfen, white_wins, black_wins, total_games));
         }
 
         let mut training_data = TrainingData::new();
 
-        for (board_vector_json, white_wins, black_wins, total_games) in records {
-            let board_vector: Vec<f32> = serde_json::from_str(&board_vector_json)
-                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
+        for (board_sfen, white_wins, black_wins, total_games) in records {
+            let board = Board::from_sfen(board_sfen);
+            let board_vector = board.to_vector(None);
 
             let white_win_rate = if total_games > 0 {
                 white_wins as f32 / total_games as f32
@@ -351,5 +349,72 @@ impl Evaluator {
         })?;
 
         Ok(result)
+    }
+}
+
+/// Python用のラッパー関数
+#[pymethods]
+impl Evaluator {
+    #[new]
+    pub fn new_for_python(db_path: String) -> Self {
+        Self::new(db_path)
+    }
+
+    #[pyo3(name = "init_database")]
+    pub fn python_init_database(&self) -> PyResult<()> {
+        self.init_database()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "generate_and_save_random_boards")]
+    pub fn python_generate_and_save_random_boards(&self, count: usize) -> PyResult<i32> {
+        self.generate_and_save_random_boards(count)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "update_records_with_random_games")]
+    pub fn python_update_records_with_random_games(
+        &self,
+        trials_per_record: usize,
+        max_records: Option<usize>,
+    ) -> PyResult<i32> {
+        self.update_records_with_random_games(trials_per_record, max_records)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "train_model")]
+    pub fn python_train_model(
+        &self,
+        min_games: i32,
+        learning_rate: f64,
+        batch_size: usize,
+        num_epochs: usize,
+        model_save_path: String,
+    ) -> PyResult<()> {
+        let training_config = TrainingConfig {
+            learning_rate,
+            batch_size,
+            num_epochs,
+            model_save_path: model_save_path.clone(),
+        };
+
+        self.train_model(min_games, training_config, model_save_path)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "evaluate_position")]
+    pub fn python_evaluate_position(
+        &self,
+        board: &Board,
+        model_path: String,
+    ) -> PyResult<(f32, f32, f32)> {
+        self.evaluate_position(board, &model_path)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "get_database_stats")]
+    pub fn python_get_database_stats(&self) -> PyResult<(i32, i32, i32)> {
+        self.get_database_stats()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }

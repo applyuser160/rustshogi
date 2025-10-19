@@ -106,4 +106,103 @@ mod tests {
         let vector = board.to_vector(Some(300));
         assert_eq!(vector.len(), 300);
     }
+
+    #[test]
+    fn test_board_to_string_startpos() {
+        let mut board = Board::new();
+        board.startpos();
+        let sfen = board.to_string();
+
+        // SFEN形式の基本構造をチェック
+        assert!(sfen.contains(" ")); // 盤面と持ち駒の区切り
+        let parts: Vec<&str> = sfen.split(" ").collect();
+        assert_eq!(parts.len(), 2);
+
+        // 盤面部分のチェック（9行、8個の'/'区切り）
+        let board_part = parts[0];
+        let slash_count = board_part.matches('/').count();
+        assert_eq!(slash_count, 8);
+
+        // 持ち駒部分のチェック（初期状態では'-'）
+        let hand_part = parts[1];
+        assert_eq!(hand_part, "-");
+    }
+
+    #[test]
+    fn test_board_from_sfen_startpos() {
+        let mut board = Board::new();
+        board.startpos();
+        let sfen = board.to_string();
+
+        let board_from_sfen = Board::from_sfen(sfen);
+
+        // 基本的な駒の配置をチェック（実際の盤面の位置を確認）
+        // 初期配置では、1行目（index 12-20）に先手の駒が配置される
+        // ただし、実際の位置を確認するために、元のboardと比較
+        assert_eq!(
+            board_from_sfen.get_piece_type_from_index(12),
+            board.get_piece_type_from_index(12)
+        );
+        assert_eq!(
+            board_from_sfen.get_color_type_from_index(12),
+            board.get_color_type_from_index(12)
+        );
+        // 9行目（index 78-86）に後手の駒が配置される
+        assert_eq!(
+            board_from_sfen.get_piece_type_from_index(78),
+            board.get_piece_type_from_index(78)
+        );
+        assert_eq!(
+            board_from_sfen.get_color_type_from_index(78),
+            board.get_color_type_from_index(78)
+        );
+    }
+
+    #[test]
+    fn test_board_sfen_roundtrip() {
+        let mut board1 = Board::new();
+        board1.startpos();
+        let sfen1 = board1.to_string();
+
+        let board2 = Board::from_sfen(sfen1.clone());
+        let sfen2 = board2.to_string();
+
+        assert_eq!(sfen1, sfen2);
+    }
+
+    #[test]
+    fn test_board_sfen_with_hand() {
+        let mut board = Board::new();
+        board.startpos();
+
+        // 駒を取る（持ち駒を増やす）ために、実際に駒を取る手を実行
+        // 先手の歩を後手の歩の位置に移動して取る
+        let from = Address::from_number(34); // 先手の歩
+        let to = Address::from_number(45); // 後手の歩の位置
+        board.execute_move(&Move::from_standart(from, to, false));
+
+        let sfen = board.to_string();
+        let parts: Vec<&str> = sfen.split(" ").collect();
+
+        // 持ち駒部分が'-'でないことをチェック（駒を取ったので持ち駒があるはず）
+        // ただし、実際に駒を取れない場合は'-'のままになる可能性がある
+        // その場合は、手動で持ち駒を追加してテスト
+        if parts[1] == "-" {
+            // 手動で持ち駒を追加
+            board.hand.add_piece(ColorType::Black, PieceType::Pawn);
+            let sfen_with_hand = board.to_string();
+            let parts_with_hand: Vec<&str> = sfen_with_hand.split(" ").collect();
+            assert_ne!(parts_with_hand[1], "-");
+
+            // SFENから復元して同じ結果になることをチェック
+            let restored_board = Board::from_sfen(sfen_with_hand.clone());
+            let restored_sfen = restored_board.to_string();
+            assert_eq!(sfen_with_hand, restored_sfen);
+        } else {
+            // SFENから復元して同じ結果になることをチェック
+            let restored_board = Board::from_sfen(sfen.clone());
+            let restored_sfen = restored_board.to_string();
+            assert_eq!(sfen, restored_sfen);
+        }
+    }
 }

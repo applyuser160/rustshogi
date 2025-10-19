@@ -25,7 +25,19 @@ impl Hand {
         if piece_type == piece::PieceType::None {
             return 0; // 安全なデフォルト値
         }
-        color_type as u16 * piece::NOT_PRO_PIECE_TYPE_NUMBER as u16 + (piece_type as u16 - 1)
+        // PieceType::Noneを除外したインデックス計算
+        let piece_index = match piece_type {
+            piece::PieceType::King => 0,
+            piece::PieceType::Gold => 1,
+            piece::PieceType::Rook => 2,
+            piece::PieceType::Bichop => 3,
+            piece::PieceType::Silver => 4,
+            piece::PieceType::Knight => 5,
+            piece::PieceType::Lance => 6,
+            piece::PieceType::Pawn => 7,
+            _ => 0, // 安全なデフォルト値
+        };
+        color_type as u16 * piece::NOT_PRO_PIECE_TYPE_NUMBER as u16 + piece_index as u16
     }
 
     pub fn new() -> Self {

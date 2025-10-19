@@ -448,6 +448,8 @@ impl Board {
 
     pub fn to_string(&self) -> String {
         let mut result = String::new();
+
+        // 盤面部分
         for row in (1..=LENGTH_OF_EDGE).rev() {
             if row < 9 {
                 result.push('/');
@@ -471,6 +473,75 @@ impl Board {
                 result.push_str(&empty_count.to_string());
             }
         }
+
+        // 持ち駒部分
+        result.push(' ');
+        let mut hand_str = String::new();
+
+        // 先手（黒）の持ち駒
+        for piece_type in [
+            PieceType::King,
+            PieceType::Gold,
+            PieceType::Rook,
+            PieceType::Bichop,
+            PieceType::Silver,
+            PieceType::Knight,
+            PieceType::Lance,
+            PieceType::Pawn,
+            PieceType::Dragon,
+            PieceType::Horse,
+            PieceType::ProSilver,
+            PieceType::ProKnight,
+            PieceType::ProLance,
+            PieceType::ProPawn,
+        ]
+        .iter()
+        {
+            let count = self.hand.get_count(ColorType::Black, *piece_type);
+            if count > 0 {
+                if count > 1 {
+                    hand_str.push_str(&count.to_string());
+                }
+                let piece_char = Piece::from(ColorType::Black, *piece_type).to_string();
+                hand_str.push_str(&piece_char);
+            }
+        }
+
+        // 後手（白）の持ち駒
+        for piece_type in [
+            PieceType::King,
+            PieceType::Gold,
+            PieceType::Rook,
+            PieceType::Bichop,
+            PieceType::Silver,
+            PieceType::Knight,
+            PieceType::Lance,
+            PieceType::Pawn,
+            PieceType::Dragon,
+            PieceType::Horse,
+            PieceType::ProSilver,
+            PieceType::ProKnight,
+            PieceType::ProLance,
+            PieceType::ProPawn,
+        ]
+        .iter()
+        {
+            let count = self.hand.get_count(ColorType::White, *piece_type);
+            if count > 0 {
+                if count > 1 {
+                    hand_str.push_str(&count.to_string());
+                }
+                let piece_char = Piece::from(ColorType::White, *piece_type).to_string();
+                hand_str.push_str(&piece_char);
+            }
+        }
+
+        if hand_str.is_empty() {
+            result.push('-');
+        } else {
+            result.push_str(&hand_str);
+        }
+
         result
     }
 
