@@ -6,7 +6,6 @@ use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use pyo3::prelude::*;
 use rand;
-use rusqlite::{Connection, Result as SqlResult};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -22,47 +21,87 @@ pub struct TrainingRecord {
     pub updated_at: String,
 }
 
+/// データベースタイプの列挙型
+#[derive(Debug, Clone)]
+pub enum DatabaseType {
+    Sqlite(String),   // SQLiteファイルパス
+    Postgres(String), // PostgreSQL接続文字列
+}
+
 /// 評価関数システム
 #[pyclass]
 pub struct Evaluator {
-    db_path: String,
+    db_type: DatabaseType,
 }
 
 impl Evaluator {
     /// 新しい評価関数システムを作成
-    pub fn new(db_path: String) -> Self {
-        Self { db_path }
-    }
-
-    /// データベース接続を取得
-    fn get_connection(&self) -> SqlResult<Connection> {
-        Connection::open(&self.db_path)
+    pub fn new(db_type: DatabaseType) -> Self {
+        Self { db_type }
     }
 
     /// データベーステーブルを初期化
-    pub fn init_database(&self) -> SqlResult<()> {
-        let conn = self.get_connection()?;
+    pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
 
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS training_data (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                board TEXT NOT NULL,
-                white_wins INTEGER DEFAULT 0,
-                black_wins INTEGER DEFAULT 0,
-                total_games INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )",
-            [],
-        )?;
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS training_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        board TEXT NOT NULL,
+                        white_wins INTEGER DEFAULT 0,
+                        black_wins INTEGER DEFAULT 0,
+                        total_games INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )",
+                    [],
+                )?;
 
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_training_data_total_games ON training_data(total_games)",
-            [],
-        )?;
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_training_data_total_games ON training_data(total_games)",
+                    [],
+                )?;
 
-        println!("データベーステーブルを初期化しました: {}", self.db_path);
-        Ok(())
+                println!("SQLiteデータベーステーブルを初期化しました: {}", db_path);
+                Ok(())
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) = tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+
+                    // 接続をバックグラウンドで実行
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    client.execute(
+                        "CREATE TABLE IF NOT EXISTS training_data (
+                            id SERIAL PRIMARY KEY,
+                            board TEXT NOT NULL,
+                            white_wins INTEGER DEFAULT 0,
+                            black_wins INTEGER DEFAULT 0,
+                            total_games INTEGER DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )",
+                        &[],
+                    ).await?;
+
+                    client.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_training_data_total_games ON training_data(total_games)",
+                        &[],
+                    ).await?;
+
+                    println!("PostgreSQLデータベーステーブルを初期化しました");
+                    Ok::<(), tokio_postgres::Error>(())
+                }).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            }
+        }
     }
 
     /// ランダム盤面を生成してRDBに保存
@@ -71,9 +110,11 @@ impl Evaluator {
     /// * `count` - 生成する盤面の数
     ///
     /// # Returns
-    /// * `SqlResult<i32>` - 保存されたレコード数
-    pub fn generate_and_save_random_boards(&self, count: usize) -> SqlResult<i32> {
-        let conn = self.get_connection()?;
+    /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 保存されたレコード数
+    pub fn generate_and_save_random_boards(
+        &self,
+        count: usize,
+    ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
         let mut saved_count = 0;
 
         println!("{}個のランダム盤面を生成中...", count);
@@ -83,10 +124,38 @@ impl Evaluator {
             let random_board = game.generate_random_board();
             let board_sfen = random_board.to_string();
 
-            conn.execute(
-                "INSERT INTO training_data (board) VALUES (?1)",
-                [&board_sfen],
-            )?;
+            match &self.db_type {
+                DatabaseType::Sqlite(db_path) => {
+                    let conn = rusqlite::Connection::open(db_path)?;
+                    conn.execute(
+                        "INSERT INTO training_data (board) VALUES (?1)",
+                        [&board_sfen],
+                    )?;
+                }
+                DatabaseType::Postgres(connection_string) => {
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    rt.block_on(async {
+                        let (client, connection) =
+                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
+                                .await?;
+
+                        tokio::spawn(async move {
+                            if let Err(e) = connection.await {
+                                eprintln!("PostgreSQL接続エラー: {}", e);
+                            }
+                        });
+
+                        client
+                            .execute(
+                                "INSERT INTO training_data (board) VALUES ($1)",
+                                &[&board_sfen],
+                            )
+                            .await?;
+
+                        Ok::<(), tokio_postgres::Error>(())
+                    })?;
+                }
+            }
 
             saved_count += 1;
 
@@ -106,31 +175,65 @@ impl Evaluator {
     /// * `max_records` - 処理する最大レコード数（Noneの場合は全て）
     ///
     /// # Returns
-    /// * `SqlResult<i32>` - 更新されたレコード数
+    /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 更新されたレコード数
     pub fn update_records_with_random_games(
         &self,
         trials_per_record: usize,
         max_records: Option<usize>,
-    ) -> SqlResult<i32> {
-        let conn = self.get_connection()?;
+    ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
+        let records = match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
+                let query = "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC";
+                let mut stmt = conn.prepare(query)?;
 
-        let query = "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC";
-        let mut stmt = conn.prepare(query)?;
+                let mut records: Vec<(i64, String)> = Vec::new();
+                let rows = stmt.query_map([], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })?;
 
-        let mut records: Vec<(i64, String)> = Vec::new();
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })?;
-
-        for row_result in rows {
-            let (id, board_sfen) = row_result?;
-            records.push((id, board_sfen));
-            if let Some(max) = max_records {
-                if records.len() >= max {
-                    break;
+                for row_result in rows {
+                    let (id, board_sfen) = row_result?;
+                    records.push((id, board_sfen));
+                    if let Some(max) = max_records {
+                        if records.len() >= max {
+                            break;
+                        }
+                    }
                 }
+                records
             }
-        }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    let mut query =
+                        "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC"
+                            .to_string();
+                    if let Some(max) = max_records {
+                        query.push_str(&format!(" LIMIT {}", max));
+                    }
+
+                    let rows = client.query(&query, &[]).await?;
+                    let mut records = Vec::new();
+
+                    for row in rows {
+                        let id: i32 = row.get(0);
+                        let board: String = row.get(1);
+                        records.push((id as i64, board));
+                    }
+                    Ok::<Vec<(i64, String)>, tokio_postgres::Error>(records)
+                })?
+            }
+        };
 
         let mut updated_count = 0;
 
@@ -139,15 +242,53 @@ impl Evaluator {
             let board = Board::from_sfen(board_sfen);
             let (white_wins, black_wins) = self.run_random_games(&board, trials_per_record);
 
-            conn.execute(
-                "UPDATE training_data
-                 SET white_wins = white_wins + ?1,
-                     black_wins = black_wins + ?2,
-                     total_games = total_games + ?3,
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?4",
-                [white_wins, black_wins, trials_per_record as i32, id as i32],
-            )?;
+            match &self.db_type {
+                DatabaseType::Sqlite(db_path) => {
+                    let conn = rusqlite::Connection::open(db_path)?;
+                    conn.execute(
+                        "UPDATE training_data
+                         SET white_wins = white_wins + ?1,
+                             black_wins = black_wins + ?2,
+                             total_games = total_games + ?3,
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE id = ?4",
+                        [white_wins, black_wins, trials_per_record as i32, id as i32],
+                    )?;
+                }
+                DatabaseType::Postgres(connection_string) => {
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    rt.block_on(async {
+                        let (client, connection) =
+                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
+                                .await?;
+
+                        tokio::spawn(async move {
+                            if let Err(e) = connection.await {
+                                eprintln!("PostgreSQL接続エラー: {}", e);
+                            }
+                        });
+
+                        client
+                            .execute(
+                                "UPDATE training_data
+                             SET white_wins = white_wins + $1,
+                                 black_wins = black_wins + $2,
+                                 total_games = total_games + $3,
+                                 updated_at = CURRENT_TIMESTAMP
+                             WHERE id = $4",
+                                &[
+                                    &white_wins,
+                                    &black_wins,
+                                    &(trials_per_record as i32),
+                                    &(id as i32),
+                                ],
+                            )
+                            .await?;
+
+                        Ok::<(), tokio_postgres::Error>(())
+                    })?;
+                }
+            }
 
             updated_count += 1;
 
@@ -209,36 +350,73 @@ impl Evaluator {
     /// * `model_save_path` - モデル保存パス
     ///
     /// # Returns
-    /// * `SqlResult<()>` - 学習結果
+    /// * `Result<(), Box<dyn std::error::Error + Send + Sync>>` - 学習結果
     pub fn train_model(
         &self,
         min_games: i32,
         training_config: TrainingConfig,
         model_save_path: String,
-    ) -> SqlResult<()> {
-        let conn = self.get_connection()?;
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let records = match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
+                let mut stmt = conn.prepare(
+                    "SELECT board, white_wins, black_wins, total_games
+                     FROM training_data
+                     WHERE total_games >= ?1
+                     ORDER BY total_games DESC",
+                )?;
 
-        let mut stmt = conn.prepare(
-            "SELECT board, white_wins, black_wins, total_games
-             FROM training_data
-             WHERE total_games >= ?1
-             ORDER BY total_games DESC",
-        )?;
+                let mut records: Vec<(String, i32, i32, i32)> = Vec::new();
+                let rows = stmt.query_map([min_games], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i32>(1)?,
+                        row.get::<_, i32>(2)?,
+                        row.get::<_, i32>(3)?,
+                    ))
+                })?;
 
-        let mut records: Vec<(String, i32, i32, i32)> = Vec::new();
-        let rows = stmt.query_map([min_games], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, i32>(1)?,
-                row.get::<_, i32>(2)?,
-                row.get::<_, i32>(3)?,
-            ))
-        })?;
+                for row_result in rows {
+                    let (board_sfen, white_wins, black_wins, total_games) = row_result?;
+                    records.push((board_sfen, white_wins, black_wins, total_games));
+                }
+                records
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
 
-        for row_result in rows {
-            let (board_sfen, white_wins, black_wins, total_games) = row_result?;
-            records.push((board_sfen, white_wins, black_wins, total_games));
-        }
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    let rows = client
+                        .query(
+                            "SELECT board, white_wins, black_wins, total_games
+                         FROM training_data
+                         WHERE total_games >= $1
+                         ORDER BY total_games DESC",
+                            &[&min_games],
+                        )
+                        .await?;
+
+                    let mut records = Vec::new();
+                    for row in rows {
+                        let board: String = row.get(0);
+                        let white_wins: i32 = row.get(1);
+                        let black_wins: i32 = row.get(2);
+                        let total_games: i32 = row.get(3);
+                        records.push((board, white_wins, black_wins, total_games));
+                    }
+                    Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(records)
+                })?
+            }
+        };
 
         let mut training_data = TrainingData::new();
 
@@ -262,9 +440,7 @@ impl Evaluator {
         }
 
         if training_data.is_empty() {
-            return Err(rusqlite::Error::InvalidParameterName(
-                "学習データが見つかりません".to_string(),
-            ));
+            return Err("学習データが見つかりません".into());
         }
 
         println!("{}個の学習データを取得しました", training_data.len());
@@ -284,10 +460,7 @@ impl Evaluator {
                 }
             }
             Err(e) => {
-                return Err(rusqlite::Error::InvalidParameterName(format!(
-                    "モデルの訓練に失敗しました: {}",
-                    e
-                )));
+                return Err(format!("モデルの訓練に失敗しました: {}", e).into());
             }
         }
 
@@ -301,23 +474,22 @@ impl Evaluator {
     /// * `model_path` - モデルファイルのパス
     ///
     /// # Returns
-    /// * `SqlResult<(f32, f32, f32)>` - (白の勝率予測, 黒の勝率予測, 総ゲーム数予測)
-    pub fn evaluate_position(&self, board: &Board, model_path: &str) -> SqlResult<(f32, f32, f32)> {
+    /// * `Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>>` - (白の勝率予測, 黒の勝率予測, 総ゲーム数予測)
+    pub fn evaluate_position(
+        &self,
+        board: &Board,
+        model_path: &str,
+    ) -> Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>> {
         if !Path::new(model_path).exists() {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "モデルファイルが見つかりません: {}",
-                model_path
-            )));
+            return Err(format!("モデルファイルが見つかりません: {}", model_path).into());
         }
 
         let device = NdArrayDevice::default();
-        let model: NnModel<Autodiff<NdArray>> =
-            NnModel::load(model_path, &device).map_err(|e| {
-                rusqlite::Error::InvalidParameterName(format!(
-                    "モデルの読み込みに失敗しました: {}",
-                    e
-                ))
-            })?;
+        let model: NnModel<Autodiff<NdArray>> = NnModel::load(model_path, &device).map_err(
+            |e| -> Box<dyn std::error::Error + Send + Sync> {
+                format!("モデルの読み込みに失敗しました: {}", e).into()
+            },
+        )?;
 
         let board_vector = board.to_vector(None);
         let prediction = model.predict_single(board_vector);
@@ -332,23 +504,51 @@ impl Evaluator {
     /// データベースの統計情報を取得
     ///
     /// # Returns
-    /// * `SqlResult<(i32, i32, i32)>` - (総レコード数, 総ゲーム数, 平均ゲーム数)
-    pub fn get_database_stats(&self) -> SqlResult<(i32, i32, i32)> {
-        let conn = self.get_connection()?;
+    /// * `Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>>` - (総レコード数, 総ゲーム数, 平均ゲーム数)
+    pub fn get_database_stats(
+        &self,
+    ) -> Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>> {
+        match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
+                let mut stmt = conn.prepare(
+                    "SELECT COUNT(*), COALESCE(SUM(total_games), 0), COALESCE(AVG(total_games), 0) FROM training_data"
+                )?;
 
-        let mut stmt = conn.prepare(
-            "SELECT COUNT(*), COALESCE(SUM(total_games), 0), COALESCE(AVG(total_games), 0) FROM training_data"
-        )?;
+                let result = stmt.query_row([], |row| {
+                    Ok((
+                        row.get::<_, i32>(0)?,
+                        row.get::<_, i32>(1)?,
+                        row.get::<_, f64>(2)? as i32,
+                    ))
+                })?;
 
-        let result = stmt.query_row([], |row| {
-            Ok((
-                row.get::<_, i32>(0)?,
-                row.get::<_, i32>(1)?,
-                row.get::<_, f64>(2)? as i32,
-            ))
-        })?;
+                Ok(result)
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) = tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
 
-        Ok(result)
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    let row = client.query_one(
+                        "SELECT COUNT(*), COALESCE(SUM(total_games), 0), COALESCE(AVG(total_games), 0) FROM training_data",
+                        &[],
+                    ).await?;
+
+                    let count: i64 = row.get(0);
+                    let total_games: i64 = row.get(1);
+                    let avg_games: f64 = row.get(2);
+
+                    Ok::<(i32, i32, i32), tokio_postgres::Error>((count as i32, total_games as i32, avg_games as i32))
+                }).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            }
+        }
     }
 }
 
@@ -356,8 +556,15 @@ impl Evaluator {
 #[pymethods]
 impl Evaluator {
     #[new]
-    pub fn new_for_python(db_path: String) -> Self {
-        Self::new(db_path)
+    pub fn new_for_python(db_type_str: String, connection_string: String) -> Self {
+        let db_type = if db_type_str.to_lowercase() == "postgres"
+            || db_type_str.to_lowercase() == "postgresql"
+        {
+            DatabaseType::Postgres(connection_string)
+        } else {
+            DatabaseType::Sqlite(connection_string)
+        };
+        Self::new(db_type)
     }
 
     #[pyo3(name = "init_database")]

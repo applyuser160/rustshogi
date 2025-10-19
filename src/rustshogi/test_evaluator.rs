@@ -1,11 +1,11 @@
 use super::board::Board;
-use super::evaluator::Evaluator;
+use super::evaluator::{DatabaseType, Evaluator};
 use super::nn_model::TrainingConfig;
 use std::fs;
 
 #[test]
 fn test_evaluator_creation() {
-    let evaluator = Evaluator::new("test.db".to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite("test.db".to_string()));
     // db_pathはプライベートなので、データベース操作でテスト
     assert!(evaluator.init_database().is_ok());
 
@@ -16,7 +16,7 @@ fn test_evaluator_creation() {
 #[test]
 fn test_database_initialization() {
     let test_db = "test_init.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     // テスト後にファイルを削除
     let _ = fs::remove_file(test_db);
@@ -27,7 +27,7 @@ fn test_database_initialization() {
 #[test]
 fn test_random_board_generation() {
     let test_db = "test_generation.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     evaluator.init_database().unwrap();
 
@@ -44,7 +44,7 @@ fn test_random_board_generation() {
 #[test]
 fn test_database_stats() {
     let test_db = "test_stats.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     evaluator.init_database().unwrap();
 
@@ -61,7 +61,7 @@ fn test_database_stats() {
 #[test]
 fn test_update_records_with_random_games() {
     let test_db = "test_update.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     evaluator.init_database().unwrap();
 
@@ -79,7 +79,7 @@ fn test_update_records_with_random_games() {
 #[test]
 fn test_evaluate_position_with_nonexistent_model() {
     let test_db = "test_eval.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     let board = Board::new();
     let result = evaluator.evaluate_position(&board, "nonexistent_model.bin");
@@ -97,7 +97,7 @@ fn test_evaluate_position_with_nonexistent_model() {
 #[test]
 fn test_train_model_with_no_data() {
     let test_db = "test_train_empty.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     evaluator.init_database().unwrap();
 
@@ -124,7 +124,7 @@ fn test_train_model_with_no_data() {
 #[test]
 fn test_train_model_with_data() {
     let test_db = "test_train_with_data.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     evaluator.init_database().unwrap();
 
@@ -153,7 +153,7 @@ fn test_train_model_with_data() {
 #[test]
 fn test_get_database_stats_with_games() {
     let test_db = "test_stats_with_games.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     evaluator.init_database().unwrap();
 
@@ -171,7 +171,7 @@ fn test_get_database_stats_with_games() {
 #[test]
 fn test_multiple_operations_sequence() {
     let test_db = "test_sequence.db";
-    let evaluator = Evaluator::new(test_db.to_string());
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
 
     // データベース初期化
     assert!(evaluator.init_database().is_ok());
@@ -193,4 +193,31 @@ fn test_multiple_operations_sequence() {
 
     // テスト後にファイルを削除
     let _ = fs::remove_file(test_db);
+}
+
+#[test]
+fn test_postgres_evaluator_creation() {
+    // PostgreSQLのテスト（実際の接続は行わない）
+    let _evaluator = Evaluator::new(DatabaseType::Postgres(
+        "postgresql://user:password@localhost/dbname".to_string(),
+    ));
+    // データベースタイプが正しく設定されていることを確認
+    // 実際の接続テストは環境に依存するため、ここでは作成のみテスト
+}
+
+#[test]
+fn test_database_type_enum() {
+    let sqlite_type = DatabaseType::Sqlite("test.db".to_string());
+    let postgres_type = DatabaseType::Postgres("postgresql://localhost/db".to_string());
+
+    // 列挙型の作成が正常に行われることを確認
+    match sqlite_type {
+        DatabaseType::Sqlite(path) => assert_eq!(path, "test.db"),
+        _ => panic!("SQLiteタイプが正しく設定されていません"),
+    }
+
+    match postgres_type {
+        DatabaseType::Postgres(conn_str) => assert_eq!(conn_str, "postgresql://localhost/db"),
+        _ => panic!("PostgreSQLタイプが正しく設定されていません"),
+    }
 }
