@@ -66,7 +66,7 @@ fn test_update_records_with_random_games() {
     evaluator.init_database().unwrap();
 
     // generate_random_boardに問題があるため、空のデータベースでテスト
-    let result = evaluator.update_records_with_random_games(5, Some(1));
+    let result = evaluator.update_records_with_random_games(5, Some(1), 1);
 
     // テスト後にファイルを削除
     let _ = fs::remove_file(test_db);
@@ -182,7 +182,7 @@ fn test_multiple_operations_sequence() {
     assert_eq!(stats1.1, 0); // 総ゲーム数
 
     // 空のデータベースでの更新操作テスト
-    let result2 = evaluator.update_records_with_random_games(2, Some(2));
+    let result2 = evaluator.update_records_with_random_games(2, Some(2), 1);
     assert!(result2.is_ok());
     assert_eq!(result2.unwrap(), 0); // 更新されるレコードは0
 

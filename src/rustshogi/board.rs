@@ -488,12 +488,6 @@ impl Board {
             PieceType::Knight,
             PieceType::Lance,
             PieceType::Pawn,
-            PieceType::Dragon,
-            PieceType::Horse,
-            PieceType::ProSilver,
-            PieceType::ProKnight,
-            PieceType::ProLance,
-            PieceType::ProPawn,
         ]
         .iter()
         {
@@ -517,12 +511,6 @@ impl Board {
             PieceType::Knight,
             PieceType::Lance,
             PieceType::Pawn,
-            PieceType::Dragon,
-            PieceType::Horse,
-            PieceType::ProSilver,
-            PieceType::ProKnight,
-            PieceType::ProLance,
-            PieceType::ProPawn,
         ]
         .iter()
         {

@@ -135,6 +135,10 @@ impl Game {
     pub fn random_play(&mut self) -> Self {
         while !self.is_finished().0 {
             let moves = self.board.search_moves(self.turn);
+            if moves.is_empty() {
+                break;
+            }
+
             let mut random = Random::new(0, (moves.len() - 1) as u16);
             let amove = &moves[random.generate_one() as usize];
             self.execute_move(amove);
@@ -206,7 +210,7 @@ impl Game {
     }
 
     pub fn generate_random_board(&mut self) -> Board {
-        let mut random = Random::new(0, 300);
+        let mut random = Random::new(0, 150);
         let move_count = random.generate_one() as usize;
 
         for _ in 0..move_count {

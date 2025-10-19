@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use rand;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::time::Instant;
 
 /// 学習データベースのレコード構造体
 #[derive(Debug, Serialize, Deserialize)]
@@ -116,11 +117,13 @@ impl Evaluator {
         count: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
         let mut saved_count = 0;
+        let start_time = Instant::now();
 
         println!("{}個のランダム盤面を生成中...", count);
 
         for i in 0..count {
             let mut game = Game::new();
+            game.input_board("startpos".to_string());
             let random_board = game.generate_random_board();
             let board_sfen = random_board.to_string();
 
@@ -160,11 +163,21 @@ impl Evaluator {
             saved_count += 1;
 
             if (i + 1) % 100 == 0 {
-                println!("{}個の盤面を生成・保存しました", i + 1);
+                let elapsed = start_time.elapsed();
+                println!(
+                    "{}個の盤面を生成・保存しました (経過時間: {:.2}秒)",
+                    i + 1,
+                    elapsed.as_secs_f64()
+                );
             }
         }
 
-        println!("{}個のランダム盤面を生成・保存しました", saved_count);
+        let total_elapsed = start_time.elapsed();
+        println!(
+            "{}個のランダム盤面を生成・保存しました (総時間: {:.2}秒)",
+            saved_count,
+            total_elapsed.as_secs_f64()
+        );
         Ok(saved_count)
     }
 
@@ -173,6 +186,7 @@ impl Evaluator {
     /// # Arguments
     /// * `trials_per_record` - 各レコードに対する試行回数
     /// * `max_records` - 処理する最大レコード数（Noneの場合は全て）
+    /// * `num_threads` - スレッド数
     ///
     /// # Returns
     /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 更新されたレコード数
@@ -180,7 +194,9 @@ impl Evaluator {
         &self,
         trials_per_record: usize,
         max_records: Option<usize>,
+        num_threads: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
+        let start_time = Instant::now();
         let records = match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
@@ -240,7 +256,18 @@ impl Evaluator {
         for (id, board_sfen) in records {
             // SFEN形式からBoardを復元
             let board = Board::from_sfen(board_sfen);
-            let (white_wins, black_wins) = self.run_random_games(&board, trials_per_record);
+            let color = if rand::random::<bool>() {
+                ColorType::White
+            } else {
+                ColorType::Black
+            };
+            let game = Game::from(board.clone(), 1, color, ColorType::None);
+            let mcts_results = game.random_move_parallel(trials_per_record, num_threads);
+            let white_wins = mcts_results.iter().map(|r| r.white_wins as i32).sum();
+            let black_wins = mcts_results.iter().map(|r| r.black_wins as i32).sum();
+            let total_games = mcts_results.iter().map(|r| r.total_games as i32).sum();
+
+            // let (white_wins, black_wins) = self.run_random_games(&board, trials_per_record);
 
             match &self.db_type {
                 DatabaseType::Sqlite(db_path) => {
@@ -252,7 +279,7 @@ impl Evaluator {
                              total_games = total_games + ?3,
                              updated_at = CURRENT_TIMESTAMP
                          WHERE id = ?4",
-                        [white_wins, black_wins, trials_per_record as i32, id as i32],
+                        [white_wins, black_wins, total_games, id as i32],
                     )?;
                 }
                 DatabaseType::Postgres(connection_string) => {
@@ -276,12 +303,7 @@ impl Evaluator {
                                  total_games = total_games + $3,
                                  updated_at = CURRENT_TIMESTAMP
                              WHERE id = $4",
-                                &[
-                                    &white_wins,
-                                    &black_wins,
-                                    &(trials_per_record as i32),
-                                    &(id as i32),
-                                ],
+                                &[&white_wins, &black_wins, &total_games, &(id as i32)],
                             )
                             .await?;
 
@@ -293,53 +315,22 @@ impl Evaluator {
             updated_count += 1;
 
             if updated_count % 10 == 0 {
-                println!("{}個のレコードを更新しました", updated_count);
+                let elapsed = start_time.elapsed();
+                println!(
+                    "{}個のレコードを更新しました (経過時間: {:.2}秒)",
+                    updated_count,
+                    elapsed.as_secs_f64()
+                );
             }
         }
 
-        println!("{}個のレコードを更新しました", updated_count);
+        let total_elapsed = start_time.elapsed();
+        println!(
+            "{}個のレコードを更新しました (総時間: {:.2}秒)",
+            updated_count,
+            total_elapsed.as_secs_f64()
+        );
         Ok(updated_count)
-    }
-
-    /// 指定された盤面でランダム対局を実行
-    ///
-    /// # Arguments
-    /// * `board` - 開始盤面
-    /// * `trials` - 試行回数
-    ///
-    /// # Returns
-    /// * `(i32, i32)` - (白の勝利数, 黒の勝利数)
-    fn run_random_games(&self, board: &Board, trials: usize) -> (i32, i32) {
-        let mut white_wins = 0;
-        let mut black_wins = 0;
-
-        for _ in 0..trials {
-            let mut game = Game::from(board.clone(), 1, ColorType::Black, ColorType::None);
-            let result = game.random_play();
-
-            match result.winner {
-                ColorType::White => white_wins += 1,
-                ColorType::Black => black_wins += 1,
-                ColorType::None => {
-                    // 引き分けの場合はランダムに勝者を決定
-                    if rand::random::<bool>() {
-                        white_wins += 1;
-                    } else {
-                        black_wins += 1;
-                    }
-                }
-                ColorType::ColorNumber => {
-                    // このケースは通常発生しないが、安全のため追加
-                    if rand::random::<bool>() {
-                        white_wins += 1;
-                    } else {
-                        black_wins += 1;
-                    }
-                }
-            }
-        }
-
-        (white_wins, black_wins)
     }
 
     /// 学習データを取得してモデルを訓練
@@ -537,7 +528,7 @@ impl Evaluator {
                     });
 
                     let row = client.query_one(
-                        "SELECT COUNT(*), COALESCE(SUM(total_games), 0), COALESCE(AVG(total_games), 0) FROM training_data",
+                        "SELECT COUNT(*), COALESCE(SUM(total_games), 0), COALESCE(CAST(AVG(total_games) AS DOUBLE PRECISION), 0) FROM training_data",
                         &[],
                     ).await?;
 
@@ -584,8 +575,9 @@ impl Evaluator {
         &self,
         trials_per_record: usize,
         max_records: Option<usize>,
+        num_threads: usize,
     ) -> PyResult<i32> {
-        self.update_records_with_random_games(trials_per_record, max_records)
+        self.update_records_with_random_games(trials_per_record, max_records, num_threads)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
