@@ -133,7 +133,10 @@ class Evaluator:
     def init_database(self) -> None: ...
     def generate_and_save_random_boards(self, count: int) -> int: ...
     def update_records_with_random_games(
-        self, trials_per_record: int, max_records: int | None
+        self,
+        trials_per_record: int,
+        max_records: int | None,
+        num_threads: int,
     ) -> int: ...
     def train_model(
         self,
