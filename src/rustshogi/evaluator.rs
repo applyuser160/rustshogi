@@ -1,13 +1,15 @@
 use super::board::Board;
-use super::color::ColorType;
+use super::color::{get_reverse_color, ColorType};
 use super::game::Game;
 use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use pyo3::prelude::*;
 use rand;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// 学習データベースのレコード構造体
@@ -116,69 +118,58 @@ impl Evaluator {
         &self,
         count: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
-        let mut saved_count = 0;
         let start_time = Instant::now();
-
         println!("{}個のランダム盤面を生成中...", count);
 
-        for i in 0..count {
-            let mut game = Game::new();
-            game.input_board("startpos".to_string());
-            let random_board = game.generate_random_board();
-            let board_sfen = random_board.to_string();
-
-            match &self.db_type {
-                DatabaseType::Sqlite(db_path) => {
-                    let conn = rusqlite::Connection::open(db_path)?;
-                    conn.execute(
-                        "INSERT INTO training_data (board) VALUES (?1)",
-                        [&board_sfen],
-                    )?;
+        match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let mut conn = rusqlite::Connection::open(db_path)?;
+                let tx = conn.transaction()?;
+                for i in 0..count {
+                    let mut game = Game::new();
+                    game.input_board("startpos".to_string());
+                    let random_board = game.generate_random_board();
+                    let board_sfen = random_board.to_string();
+                    tx.execute("INSERT INTO training_data (board) VALUES (?1)", &[&board_sfen])?;
+                    if (i + 1) % 100 == 0 {
+                        let elapsed = start_time.elapsed();
+                        println!("{}個の盤面を生成・保存しました (経過時間: {:.2}秒)", i + 1, elapsed.as_secs_f64());
+                    }
                 }
-                DatabaseType::Postgres(connection_string) => {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let (client, connection) =
-                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
-                                .await?;
-
-                        tokio::spawn(async move {
-                            if let Err(e) = connection.await {
-                                eprintln!("PostgreSQL接続エラー: {}", e);
-                            }
-                        });
-
-                        client
-                            .execute(
-                                "INSERT INTO training_data (board) VALUES ($1)",
-                                &[&board_sfen],
-                            )
-                            .await?;
-
-                        Ok::<(), tokio_postgres::Error>(())
-                    })?;
-                }
+                tx.commit()?;
             }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (mut client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
 
-            saved_count += 1;
-
-            if (i + 1) % 100 == 0 {
-                let elapsed = start_time.elapsed();
-                println!(
-                    "{}個の盤面を生成・保存しました (経過時間: {:.2}秒)",
-                    i + 1,
-                    elapsed.as_secs_f64()
-                );
+                    let transaction = client.transaction().await?;
+                    for i in 0..count {
+                        let mut game = Game::new();
+                        game.input_board("startpos".to_string());
+                        let random_board = game.generate_random_board();
+                        let board_sfen = random_board.to_string();
+                        transaction.execute("INSERT INTO training_data (board) VALUES ($1)", &[&board_sfen]).await?;
+                        if (i + 1) % 100 == 0 {
+                            let elapsed = start_time.elapsed();
+                            println!("{}個の盤面を生成・保存しました (経過時間: {:.2}秒)", i + 1, elapsed.as_secs_f64());
+                        }
+                    }
+                    transaction.commit().await?;
+                    Ok::<(), tokio_postgres::Error>(())
+                })?;
             }
         }
 
         let total_elapsed = start_time.elapsed();
-        println!(
-            "{}個のランダム盤面を生成・保存しました (総時間: {:.2}秒)",
-            saved_count,
-            total_elapsed.as_secs_f64()
-        );
-        Ok(saved_count)
+        println!("{}個のランダム盤面を生成・保存しました (総時間: {:.2}秒)", count, total_elapsed.as_secs_f64());
+        Ok(count as i32)
     }
 
     /// 保存されたレコードを読み取り、ランダム対局を実行して勝利数を更新
@@ -225,7 +216,6 @@ impl Evaluator {
                 rt.block_on(async {
                     let (client, connection) =
                         tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
-
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
                             eprintln!("PostgreSQL接続エラー: {}", e);
@@ -302,15 +292,14 @@ impl Evaluator {
             all_results.len()
         );
 
-        // データベース書き込み（順次処理）
+        // データベース書き込み
         println!("データベースへの書き込みを開始します...");
-        let mut updated_count = 0;
-
-        for (id, white_wins, black_wins, total_games) in all_results {
-            match &self.db_type {
-                DatabaseType::Sqlite(db_path) => {
-                    let conn = rusqlite::Connection::open(db_path)?;
-                    conn.execute(
+        let updated_count = match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let mut conn = rusqlite::Connection::open(db_path)?;
+                let tx = conn.transaction()?;
+                for (id, white_wins, black_wins, total_games) in all_results {
+                    tx.execute(
                         "UPDATE training_data
                          SET white_wins = white_wins + ?1,
                              black_wins = black_wins + ?2,
@@ -320,37 +309,226 @@ impl Evaluator {
                         [white_wins, black_wins, total_games, id as i32],
                     )?;
                 }
-                DatabaseType::Postgres(connection_string) => {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let (client, connection) =
-                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
-                                .await?;
+                tx.commit()?;
+                Ok(processed_count as i32)
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (mut client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
 
-                        tokio::spawn(async move {
-                            if let Err(e) = connection.await {
-                                eprintln!("PostgreSQL接続エラー: {}", e);
-                            }
-                        });
-
-                        client
-                            .execute(
-                                "UPDATE training_data
+                    let transaction = client.transaction().await?;
+                    for (id, white_wins, black_wins, total_games) in all_results {
+                        transaction.execute(
+                            "UPDATE training_data
                              SET white_wins = white_wins + $1,
                                  black_wins = black_wins + $2,
                                  total_games = total_games + $3,
                                  updated_at = CURRENT_TIMESTAMP
                              WHERE id = $4",
-                                &[&white_wins, &black_wins, &total_games, &(id as i32)],
-                            )
-                            .await?;
-
-                        Ok::<(), tokio_postgres::Error>(())
-                    })?;
-                }
+                            &[&white_wins, &black_wins, &total_games, &(id as i32)],
+                        ).await?;
+                    }
+                    transaction.commit().await?;
+                    Ok::<_, tokio_postgres::Error>(processed_count as i32)
+                })
             }
-            updated_count += 1;
-        }
+        }?;
+
+        println!(
+            "データベースへの書き込みが完了しました。更新されたレコード数: {}",
+            updated_count
+        );
+
+        let total_elapsed = start_time.elapsed();
+        println!(
+            "{}個のレコードを更新しました (総時間: {:.2}秒)",
+            updated_count,
+            total_elapsed.as_secs_f64()
+        );
+        Ok(updated_count)
+    }
+
+    /// 保存されたレコードを読み取り、ランダム対局を実行して勝利数を更新（並列処理）
+    ///
+    /// # Arguments
+    /// * `trials_per_record` - 各レコードに対する試行回数
+    /// * `max_records` - 処理する最大レコード数（Noneの場合は全て）
+    /// * `num_threads` - スレッド数
+    ///
+    /// # Returns
+    /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 更新されたレコード数
+    pub fn update_records_with_random_games_parallel(
+        &self,
+        trials_per_record: usize,
+        max_records: Option<usize>,
+        num_threads: usize,
+    ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
+        let start_time = Instant::now();
+
+        // データベースからレコードを読み込む
+        let records = match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
+                let query = "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC";
+                let mut stmt = conn.prepare(query)?;
+                let rows = stmt.query_map([], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })?;
+                let mut records = Vec::new();
+                for row_result in rows {
+                    let (id, board_sfen) = row_result?;
+                    records.push((id, board_sfen));
+                    if let Some(max) = max_records {
+                        if records.len() >= max {
+                            break;
+                        }
+                    }
+                }
+                records
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    let mut query = "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC".to_string();
+                    if let Some(max) = max_records {
+                        query.push_str(&format!(" LIMIT {}", max));
+                    }
+                    let rows = client.query(&query, &[]).await?;
+                    let mut records = Vec::new();
+                    for row in rows {
+                        let id: i32 = row.get(0);
+                        let board: String = row.get(1);
+                        records.push((id as i64, board));
+                    }
+                    Ok::<_, tokio_postgres::Error>(records)
+                })?
+            }
+        };
+
+        println!(
+            "{}個のレコードを{}個のスレッドで並列処理します",
+            records.len(),
+            num_threads
+        );
+
+        let processed_count = AtomicUsize::new(0);
+        let total_records = records.len();
+
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap();
+
+        let all_results: Vec<(i64, i32, i32, i32)> = pool.install(|| {
+            records
+                .par_iter()
+                .map(|(id, board_sfen)| {
+                    let mut white_wins = 0;
+                    let mut black_wins = 0;
+
+                    for _ in 0..trials_per_record {
+                        let board = Board::from_sfen(board_sfen.clone());
+                        let color = if rand::random::<bool>() {
+                            ColorType::White
+                        } else {
+                            ColorType::Black
+                        };
+                        let mut game = Game::from(board, 1, color, ColorType::None);
+                        let winner = run_simulation_sequential(&mut game);
+
+                        match winner {
+                            ColorType::White => white_wins += 1,
+                            ColorType::Black => black_wins += 1,
+                            _ => {}
+                        }
+                    }
+                    let current_processed = processed_count.fetch_add(1, Ordering::SeqCst) + 1;
+                    if current_processed % 10 == 0 || current_processed == total_records {
+                        let elapsed = start_time.elapsed();
+                        let progress_percent = (current_processed as f64 / total_records as f64) * 100.0;
+                        println!(
+                            "進捗: {}/{} ({:.1}%) - 経過時間: {:.2}秒",
+                            current_processed,
+                            total_records,
+                            progress_percent,
+                            elapsed.as_secs_f64()
+                        );
+                    }
+
+                    (*id, white_wins, black_wins, trials_per_record as i32)
+                })
+                .collect()
+        });
+
+
+        println!(
+            "ランダム対局の試行が完了しました。処理されたレコード数: {}",
+            all_results.len()
+        );
+
+        // データベース書き込み
+        println!("データベースへの書き込みを開始します...");
+        let updated_count = match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let mut conn = rusqlite::Connection::open(db_path)?;
+                let tx = conn.transaction()?;
+                for (id, white_wins, black_wins, total_games) in all_results {
+                    tx.execute(
+                        "UPDATE training_data
+                         SET white_wins = white_wins + ?1,
+                             black_wins = black_wins + ?2,
+                             total_games = total_games + ?3,
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE id = ?4",
+                        [white_wins, black_wins, total_games, id as i32],
+                    )?;
+                }
+                tx.commit()?;
+                Ok(total_records as i32)
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (mut client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    let transaction = client.transaction().await?;
+                    for (id, white_wins, black_wins, total_games) in all_results {
+                        transaction.execute(
+                            "UPDATE training_data
+                             SET white_wins = white_wins + $1,
+                                 black_wins = black_wins + $2,
+                                 total_games = total_games + $3,
+                                 updated_at = CURRENT_TIMESTAMP
+                             WHERE id = $4",
+                            &[&white_wins, &black_wins, &total_games, &(id as i32)],
+                        ).await?;
+                    }
+                    transaction.commit().await?;
+                    Ok::<_, tokio_postgres::Error>(total_records as i32)
+                })
+            }
+        }?;
 
         println!(
             "データベースへの書き込みが完了しました。更新されたレコード数: {}",
@@ -422,22 +600,18 @@ impl Evaluator {
                     let rows = client
                         .query(
                             "SELECT board, white_wins, black_wins, total_games
-                         FROM training_data
-                         WHERE total_games >= $1
-                         ORDER BY total_games DESC",
+                             FROM training_data
+                             WHERE total_games >= $1
+                             ORDER BY total_games DESC",
                             &[&min_games],
                         )
                         .await?;
 
                     let mut records = Vec::new();
                     for row in rows {
-                        let board: String = row.get(0);
-                        let white_wins: i32 = row.get(1);
-                        let black_wins: i32 = row.get(2);
-                        let total_games: i32 = row.get(3);
-                        records.push((board, white_wins, black_wins, total_games));
+                        records.push((row.get(0), row.get(1), row.get(2), row.get(3)));
                     }
-                    Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(records)
+                    Ok::<_, tokio_postgres::Error>(records)
                 })?
             }
         };
@@ -614,6 +788,21 @@ impl Evaluator {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[pyo3(name = "update_records_with_random_games_parallel")]
+    pub fn python_update_records_with_random_games_parallel(
+        &self,
+        trials_per_record: usize,
+        max_records: Option<usize>,
+        num_threads: usize,
+    ) -> PyResult<i32> {
+        self.update_records_with_random_games_parallel(
+            trials_per_record,
+            max_records,
+            num_threads,
+        )
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     #[pyo3(name = "train_model")]
     pub fn python_train_model(
         &self,
@@ -649,4 +838,19 @@ impl Evaluator {
         self.get_database_stats()
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
+}
+
+/// 1回のシミュレーションを順次実行して勝者を返す
+fn run_simulation_sequential(game: &mut Game) -> ColorType {
+    while !game.is_finished().0 {
+        let moves = game.board.search_moves(game.turn);
+        if moves.is_empty() {
+            return get_reverse_color(game.turn); // 相手の勝ち
+        }
+        let move_count = moves.len();
+        let mut random = super::random::Random::new(0, (move_count - 1) as u16);
+        let random_move = &moves[random.generate_one() as usize];
+        game.execute_move(random_move);
+    }
+    game.is_finished().1
 }

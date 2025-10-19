@@ -209,12 +209,55 @@ fn benchmark_random(c: &mut Criterion) {
     group.finish();
 }
 
+fn benchmark_evaluator(c: &mut Criterion) {
+    use rustshogi::evaluator::{DatabaseType, Evaluator};
+    use std::fs;
+
+    let db_path = "test_benchmark.db";
+    let db_type = DatabaseType::Sqlite(db_path.to_string());
+    let evaluator = Evaluator::new(db_type);
+
+    // Setup: データベースを初期化し、ランダムな盤面をいくつか生成
+    evaluator.init_database().unwrap();
+    evaluator.generate_and_save_random_boards(10).unwrap();
+
+    let mut group = c.benchmark_group("Evaluator");
+
+    // ベンチマーク：順次実行
+    group.bench_function("update_records_sequential", |b| {
+        b.iter(|| {
+            let _ = evaluator.update_records_with_random_games(
+                black_box(10), // trials_per_record
+                black_box(Some(10)), // max_records
+                black_box(1), // num_threads (sequential)
+            );
+        })
+    });
+
+    // ベンチマーク：並列実行
+    group.bench_function("update_records_parallel", |b| {
+        b.iter(|| {
+            let _ = evaluator.update_records_with_random_games_parallel(
+                black_box(10), // trials_per_record
+                black_box(Some(10)), // max_records
+                black_box(num_cpus::get()), // num_threads
+            );
+        })
+    });
+
+    group.finish();
+
+    // Teardown: テストデータベースファイルを削除
+    fs::remove_file(db_path).unwrap();
+}
+
 criterion_group!(
     benches,
     benchmark_bitboard_operations,
     benchmark_game_logic,
     benchmark_direction,
     benchmark_piece,
-    benchmark_random
+    benchmark_random,
+    benchmark_evaluator
 );
 criterion_main!(benches);
