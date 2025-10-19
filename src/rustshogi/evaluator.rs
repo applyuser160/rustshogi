@@ -274,8 +274,29 @@ impl Evaluator {
             };
             let game = Game::from(board.clone(), 1, color, ColorType::None);
 
-            // random_move_parallel内で並列処理を実行
+            // 並列実行の計測
+            let parallel_start = Instant::now();
             let mcts_results = game.random_move_parallel(trials_per_record, num_threads);
+            let parallel_duration = parallel_start.elapsed();
+            println!(
+                "  - Record {}: Parallel execution ({} trials, {} threads) took: {:.2} seconds",
+                id,
+                trials_per_record,
+                num_threads,
+                parallel_duration.as_secs_f64()
+            );
+
+            // 逐次実行の計測
+            let sequential_start = Instant::now();
+            game.random_move_sequential(trials_per_record);
+            let sequential_duration = sequential_start.elapsed();
+            println!(
+                "  - Record {}: Sequential execution ({} trials) took: {:.2} seconds",
+                id,
+                trials_per_record,
+                sequential_duration.as_secs_f64()
+            );
+
             let white_wins = mcts_results.iter().map(|r| r.white_wins as i32).sum();
             let black_wins = mcts_results.iter().map(|r| r.black_wins as i32).sum();
             let total_games = mcts_results.iter().map(|r| r.total_games as i32).sum();

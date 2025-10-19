@@ -171,6 +171,16 @@ impl Game {
             .build()
             .unwrap();
 
+        // 事前に各手を適用した後の状態を計算
+        let next_games: Vec<Game> = next_moves
+            .iter()
+            .map(|mv| {
+                let mut game_clone = self.clone();
+                game_clone.execute_move(mv);
+                game_clone
+            })
+            .collect();
+
         let simulation_results: Vec<(ColorType, usize)> = pool.install(|| {
             (0..num)
                 .into_par_iter()
@@ -179,9 +189,8 @@ impl Game {
                     let mut random = Random::new(0, (next_move_count - 1) as u16);
                     let selected_move_index = random.generate_one() as usize;
 
-                    // 選択された手でゲームを開始
-                    let mut game_clone = self.clone();
-                    game_clone.execute_move(&next_moves[selected_move_index]);
+                    // 選択された手の後の状態からゲームを開始
+                    let mut game_clone = next_games[selected_move_index].clone();
 
                     // ランダムプレイでゲーム終了まで実行
                     while !game_clone.is_finished().0 {
@@ -251,6 +260,7 @@ impl Game {
 
         results
     }
+
 
     pub fn random_move_parallel_chunked(&self, num: usize, num_threads: usize) -> Vec<MctsResult> {
         let next_moves = self.board.search_moves(self.turn);
