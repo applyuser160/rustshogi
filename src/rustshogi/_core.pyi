@@ -137,6 +137,7 @@ class Evaluator:
         trials_per_record: int,
         max_records: int | None,
         num_threads: int,
+        num_processes: int,
     ) -> int: ...
     def train_model(
         self,

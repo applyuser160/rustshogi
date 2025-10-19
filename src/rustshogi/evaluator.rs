@@ -6,6 +6,7 @@ use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use pyo3::prelude::*;
 use rand;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Instant;
@@ -187,6 +188,7 @@ impl Evaluator {
     /// * `trials_per_record` - 各レコードに対する試行回数
     /// * `max_records` - 処理する最大レコード数（Noneの場合は全て）
     /// * `num_threads` - スレッド数
+    /// * `num_processes` - プロセス数
     ///
     /// # Returns
     /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 更新されたレコード数
@@ -195,6 +197,7 @@ impl Evaluator {
         trials_per_record: usize,
         max_records: Option<usize>,
         num_threads: usize,
+        num_processes: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
         let start_time = Instant::now();
         let records = match &self.db_type {
@@ -251,76 +254,110 @@ impl Evaluator {
             }
         };
 
-        let mut updated_count = 0;
+        // レコードをプロセス数に応じて分割
+        let chunk_size = records.len().div_ceil(num_processes);
+        let record_chunks: Vec<Vec<(i64, String)>> = records
+            .chunks(chunk_size)
+            .map(|chunk| chunk.to_vec())
+            .collect();
 
-        for (id, board_sfen) in records {
-            // SFEN形式からBoardを復元
-            let board = Board::from_sfen(board_sfen);
-            let color = if rand::random::<bool>() {
-                ColorType::White
-            } else {
-                ColorType::Black
-            };
-            let game = Game::from(board.clone(), 1, color, ColorType::None);
-            let mcts_results = game.random_move_parallel(trials_per_record, num_threads);
-            let white_wins = mcts_results.iter().map(|r| r.white_wins as i32).sum();
-            let black_wins = mcts_results.iter().map(|r| r.black_wins as i32).sum();
-            let total_games = mcts_results.iter().map(|r| r.total_games as i32).sum();
+        println!(
+            "{}個のレコードを{}個のプロセスで処理します",
+            records.len(),
+            num_processes
+        );
 
-            // let (white_wins, black_wins) = self.run_random_games(&board, trials_per_record);
+        // 各プロセスで処理する関数
+        let process_records = |chunk: Vec<(i64, String)>| -> Result<
+            Vec<(i64, i32, i32, i32)>,
+            Box<dyn std::error::Error + Send + Sync>,
+        > {
+            let mut results = Vec::new();
 
-            match &self.db_type {
-                DatabaseType::Sqlite(db_path) => {
-                    let conn = rusqlite::Connection::open(db_path)?;
-                    conn.execute(
-                        "UPDATE training_data
-                         SET white_wins = white_wins + ?1,
-                             black_wins = black_wins + ?2,
-                             total_games = total_games + ?3,
-                             updated_at = CURRENT_TIMESTAMP
-                         WHERE id = ?4",
-                        [white_wins, black_wins, total_games, id as i32],
-                    )?;
-                }
-                DatabaseType::Postgres(connection_string) => {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let (client, connection) =
-                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
-                                .await?;
+            for (id, board_sfen) in chunk {
+                // SFEN形式からBoardを復元
+                let board = Board::from_sfen(board_sfen);
+                let color = if rand::random::<bool>() {
+                    ColorType::White
+                } else {
+                    ColorType::Black
+                };
+                let game = Game::from(board.clone(), 1, color, ColorType::None);
+                let mcts_results = game.random_move_parallel(trials_per_record, num_threads);
+                let white_wins = mcts_results.iter().map(|r| r.white_wins as i32).sum();
+                let black_wins = mcts_results.iter().map(|r| r.black_wins as i32).sum();
+                let total_games = mcts_results.iter().map(|r| r.total_games as i32).sum();
 
-                        tokio::spawn(async move {
-                            if let Err(e) = connection.await {
-                                eprintln!("PostgreSQL接続エラー: {}", e);
-                            }
-                        });
-
-                        client
-                            .execute(
-                                "UPDATE training_data
-                             SET white_wins = white_wins + $1,
-                                 black_wins = black_wins + $2,
-                                 total_games = total_games + $3,
-                                 updated_at = CURRENT_TIMESTAMP
-                             WHERE id = $4",
-                                &[&white_wins, &black_wins, &total_games, &(id as i32)],
-                            )
-                            .await?;
-
-                        Ok::<(), tokio_postgres::Error>(())
-                    })?;
-                }
+                results.push((id, white_wins, black_wins, total_games));
             }
 
-            updated_count += 1;
+            Ok(results)
+        };
 
-            if updated_count % 10 == 0 {
-                let elapsed = start_time.elapsed();
-                println!(
-                    "{}個のレコードを更新しました (経過時間: {:.2}秒)",
-                    updated_count,
-                    elapsed.as_secs_f64()
-                );
+        // マルチプロセスで並列実行
+        let db_type_clone = self.db_type.clone();
+        let all_results: Result<Vec<_>, _> =
+            record_chunks.into_par_iter().map(process_records).collect();
+
+        let all_results = all_results?;
+        let mut updated_count = 0;
+
+        // 結果をデータベースに保存
+        for results in all_results {
+            for (id, white_wins, black_wins, total_games) in results {
+                match &db_type_clone {
+                    DatabaseType::Sqlite(db_path) => {
+                        let conn = rusqlite::Connection::open(db_path)?;
+                        conn.execute(
+                            "UPDATE training_data
+                             SET white_wins = white_wins + ?1,
+                                 black_wins = black_wins + ?2,
+                                 total_games = total_games + ?3,
+                                 updated_at = CURRENT_TIMESTAMP
+                             WHERE id = ?4",
+                            [white_wins, black_wins, total_games, id as i32],
+                        )?;
+                    }
+                    DatabaseType::Postgres(connection_string) => {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            let (client, connection) =
+                                tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
+                                    .await?;
+
+                            tokio::spawn(async move {
+                                if let Err(e) = connection.await {
+                                    eprintln!("PostgreSQL接続エラー: {}", e);
+                                }
+                            });
+
+                            client
+                                .execute(
+                                    "UPDATE training_data
+                                 SET white_wins = white_wins + $1,
+                                     black_wins = black_wins + $2,
+                                     total_games = total_games + $3,
+                                     updated_at = CURRENT_TIMESTAMP
+                                 WHERE id = $4",
+                                    &[&white_wins, &black_wins, &total_games, &(id as i32)],
+                                )
+                                .await?;
+
+                            Ok::<(), tokio_postgres::Error>(())
+                        })?;
+                    }
+                }
+
+                updated_count += 1;
+
+                if updated_count % 10 == 0 {
+                    let elapsed = start_time.elapsed();
+                    println!(
+                        "{}個のレコードを更新しました (経過時間: {:.2}秒)",
+                        updated_count,
+                        elapsed.as_secs_f64()
+                    );
+                }
             }
         }
 
@@ -576,9 +613,15 @@ impl Evaluator {
         trials_per_record: usize,
         max_records: Option<usize>,
         num_threads: usize,
+        num_processes: usize,
     ) -> PyResult<i32> {
-        self.update_records_with_random_games(trials_per_record, max_records, num_threads)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        self.update_records_with_random_games(
+            trials_per_record,
+            max_records,
+            num_threads,
+            num_processes,
+        )
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     #[pyo3(name = "train_model")]
