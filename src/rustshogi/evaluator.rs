@@ -9,6 +9,8 @@ use rand;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 /// 学習データベースのレコード構造体
@@ -254,7 +256,7 @@ impl Evaluator {
             }
         };
 
-        // レコードをプロセス数に応じて分割
+        // レコードをスレッド数に応じて分割（プロセス数はスレッド数として使用）
         let chunk_size = if records.is_empty() {
             1 // 空の場合は最小チャンクサイズを設定
         } else {
@@ -266,13 +268,18 @@ impl Evaluator {
             .collect();
 
         println!(
-            "{}個のレコードを{}個のプロセスで処理します",
+            "{}個のレコードを{}個のスレッドで並列処理します",
             records.len(),
             num_processes
         );
 
-        // 各プロセスで処理する関数
-        let process_records = |chunk: Vec<(i64, String)>| -> Result<
+        // 進捗追跡用のアトミックカウンター
+        let processed_count = Arc::new(AtomicUsize::new(0));
+        let total_records = records.len();
+
+        // 各スレッドで処理する関数
+        let processed_count_clone = processed_count.clone();
+        let process_records = move |chunk: Vec<(i64, String)>| -> Result<
             Vec<(i64, i32, i32, i32)>,
             Box<dyn std::error::Error + Send + Sync>,
         > {
@@ -293,77 +300,107 @@ impl Evaluator {
                 let total_games = mcts_results.iter().map(|r| r.total_games as i32).sum();
 
                 results.push((id, white_wins, black_wins, total_games));
+
+                // 進捗を更新
+                let current_count = processed_count_clone.fetch_add(1, Ordering::Relaxed) + 1;
+
+                // 10個ごと、または最後のレコードで進捗を表示
+                if current_count % 10 == 0 || current_count == total_records {
+                    let elapsed = start_time.elapsed();
+                    let progress_percent = (current_count as f64 / total_records as f64) * 100.0;
+                    println!(
+                        "進捗: {}/{} ({:.1}%) - 経過時間: {:.2}秒",
+                        current_count,
+                        total_records,
+                        progress_percent,
+                        elapsed.as_secs_f64()
+                    );
+                }
             }
 
             Ok(results)
         };
 
-        // マルチプロセスで並列実行
-        let db_type_clone = self.db_type.clone();
-        let all_results: Result<Vec<_>, _> =
-            record_chunks.into_par_iter().map(process_records).collect();
+        // マルチスレッドで並列実行（スレッドプールを設定）
+        let all_results: Result<Vec<_>, _> = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_processes)
+            .build()
+            .unwrap()
+            .install(|| record_chunks.into_par_iter().map(process_records).collect());
 
         let all_results = all_results?;
-        let mut updated_count = 0;
+        println!(
+            "ランダム対局の試行が完了しました。結果チャンク数: {}",
+            all_results.len()
+        );
 
-        // 結果をデータベースに保存
-        for results in all_results {
-            for (id, white_wins, black_wins, total_games) in results {
-                match &db_type_clone {
-                    DatabaseType::Sqlite(db_path) => {
-                        let conn = rusqlite::Connection::open(db_path)?;
-                        conn.execute(
-                            "UPDATE training_data
-                             SET white_wins = white_wins + ?1,
-                                 black_wins = black_wins + ?2,
-                                 total_games = total_games + ?3,
-                                 updated_at = CURRENT_TIMESTAMP
-                             WHERE id = ?4",
-                            [white_wins, black_wins, total_games, id as i32],
-                        )?;
-                    }
-                    DatabaseType::Postgres(connection_string) => {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(async {
-                            let (client, connection) =
-                                tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
+        // データベース書き込みも並列化
+        println!("データベースへの書き込みを開始します...");
+        let db_type_clone = self.db_type.clone();
+        let write_results: Result<Vec<i32>, Box<dyn std::error::Error + Send + Sync>> = all_results
+            .into_par_iter()
+            .map(
+                |results| -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
+                    let mut local_count = 0;
+                    for (id, white_wins, black_wins, total_games) in results {
+                        match &db_type_clone {
+                            DatabaseType::Sqlite(db_path) => {
+                                let conn = rusqlite::Connection::open(db_path)?;
+                                conn.execute(
+                                    "UPDATE training_data
+                                 SET white_wins = white_wins + ?1,
+                                     black_wins = black_wins + ?2,
+                                     total_games = total_games + ?3,
+                                     updated_at = CURRENT_TIMESTAMP
+                                 WHERE id = ?4",
+                                    [white_wins, black_wins, total_games, id as i32],
+                                )?;
+                            }
+                            DatabaseType::Postgres(connection_string) => {
+                                let rt = tokio::runtime::Runtime::new().unwrap();
+                                rt.block_on(async {
+                                    let (client, connection) = tokio_postgres::connect(
+                                        connection_string,
+                                        tokio_postgres::NoTls,
+                                    )
                                     .await?;
 
-                            tokio::spawn(async move {
-                                if let Err(e) = connection.await {
-                                    eprintln!("PostgreSQL接続エラー: {}", e);
-                                }
-                            });
+                                    tokio::spawn(async move {
+                                        if let Err(e) = connection.await {
+                                            eprintln!("PostgreSQL接続エラー: {}", e);
+                                        }
+                                    });
 
-                            client
-                                .execute(
-                                    "UPDATE training_data
-                                 SET white_wins = white_wins + $1,
-                                     black_wins = black_wins + $2,
-                                     total_games = total_games + $3,
-                                     updated_at = CURRENT_TIMESTAMP
-                                 WHERE id = $4",
-                                    &[&white_wins, &black_wins, &total_games, &(id as i32)],
-                                )
-                                .await?;
+                                    client
+                                        .execute(
+                                            "UPDATE training_data
+                                     SET white_wins = white_wins + $1,
+                                         black_wins = black_wins + $2,
+                                         total_games = total_games + $3,
+                                         updated_at = CURRENT_TIMESTAMP
+                                     WHERE id = $4",
+                                            &[&white_wins, &black_wins, &total_games, &(id as i32)],
+                                        )
+                                        .await?;
 
-                            Ok::<(), tokio_postgres::Error>(())
-                        })?;
+                                    Ok::<(), tokio_postgres::Error>(())
+                                })?;
+                            }
+                        }
+                        local_count += 1;
                     }
-                }
+                    Ok(local_count)
+                },
+            )
+            .collect();
 
-                updated_count += 1;
+        let write_counts = write_results?;
+        let updated_count = write_counts.iter().sum();
 
-                if updated_count % 10 == 0 {
-                    let elapsed = start_time.elapsed();
-                    println!(
-                        "{}個のレコードを更新しました (経過時間: {:.2}秒)",
-                        updated_count,
-                        elapsed.as_secs_f64()
-                    );
-                }
-            }
-        }
+        println!(
+            "データベースへの書き込みが完了しました。更新されたレコード数: {}",
+            updated_count
+        );
 
         let total_elapsed = start_time.elapsed();
         println!(
