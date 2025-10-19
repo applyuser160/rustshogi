@@ -255,7 +255,11 @@ impl Evaluator {
         };
 
         // レコードをプロセス数に応じて分割
-        let chunk_size = records.len().div_ceil(num_processes);
+        let chunk_size = if records.is_empty() {
+            1 // 空の場合は最小チャンクサイズを設定
+        } else {
+            records.len().div_ceil(num_processes)
+        };
         let record_chunks: Vec<Vec<(i64, String)>> = records
             .chunks(chunk_size)
             .map(|chunk| chunk.to_vec())
