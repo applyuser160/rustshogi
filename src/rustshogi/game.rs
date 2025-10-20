@@ -152,6 +152,11 @@ impl Game {
     }
 
     pub fn random_move_parallel(&self, num: usize, num_threads: usize) -> Vec<MctsResult> {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap();
+
         let next_moves = self.board.search_moves(self.turn);
         let next_move_count = next_moves.len();
 
@@ -159,44 +164,54 @@ impl Game {
             return vec![];
         }
 
-        // 各手に対してMctsResultを初期化
+        // Count how many simulations to run for each move.
+        let mut counts = vec![0; next_move_count];
+        let mut random_gen = Random::new(0, (next_move_count - 1) as u16);
+        for _ in 0..num {
+            counts[random_gen.generate_one() as usize] += 1;
+        }
+
+        // Initialize MctsResult for each move.
         let mut results: Vec<MctsResult> = next_moves
             .iter()
             .map(|mv| MctsResult::from(self.board.clone(), mv.clone()))
             .collect();
 
-        // スレッドプールを明示的に設定して並列処理を実行
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .build()
-            .unwrap();
-
+        // Run simulations in parallel.
         let simulation_results: Vec<(ColorType, usize)> = pool.install(|| {
-            (0..num)
+            counts
                 .into_par_iter()
-                .map(|_| {
-                    // ランダムに手を選択
-                    let mut random = Random::new(0, (next_move_count - 1) as u16);
-                    let selected_move_index = random.generate_one() as usize;
-
-                    // 選択された手でゲームを開始
-                    let mut game_clone = self.clone();
-                    game_clone.execute_move(&next_moves[selected_move_index]);
-
-                    // ランダムプレイでゲーム終了まで実行
-                    while !game_clone.is_finished().0 {
-                        let moves = game_clone.board.search_moves(game_clone.turn);
-                        if moves.is_empty() {
-                            break;
-                        }
-                        let move_count = moves.len();
-                        let mut random = Random::new(0, (move_count - 1) as u16);
-                        let random_move = &moves[random.generate_one() as usize];
-                        game_clone.execute_move(random_move);
+                .enumerate()
+                .flat_map(|(move_index, num_sims_for_this_move)| {
+                    if num_sims_for_this_move == 0 {
+                        return Vec::new();
                     }
 
-                    let (_is_finished, winner) = game_clone.is_finished();
-                    (winner, selected_move_index)
+                    // Clone and advance the game state ONCE for this move.
+                    let mut initial_game_clone = self.clone();
+                    initial_game_clone.execute_move(&next_moves[move_index]);
+
+                    // Run simulations for this move sequentially within this parallel task.
+                    (0..num_sims_for_this_move)
+                        .map(|_| {
+                            let mut game_clone = initial_game_clone.clone();
+
+                            // Perform a random playout.
+                            while !game_clone.is_finished().0 {
+                                let moves = game_clone.board.search_moves_no_cache(game_clone.turn);
+                                if moves.is_empty() {
+                                    break;
+                                }
+                                let move_count = moves.len();
+                                let mut random = Random::new(0, (move_count - 1) as u16);
+                                let random_move = &moves[random.generate_one() as usize];
+                                game_clone.execute_move(random_move);
+                            }
+
+                            let (_is_finished, winner) = game_clone.is_finished();
+                            (winner, move_index)
+                        })
+                        .collect::<Vec<_>>()
                 })
                 .collect()
         });

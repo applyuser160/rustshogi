@@ -738,6 +738,48 @@ impl Board {
         vector_move
     }
 
+    // 並列プレイアウト用（キャッシュ非使用）
+    pub fn search_moves_no_cache(&self, color: ColorType) -> Vec<Move> {
+        let mut vector_move: Vec<Move> = Vec::with_capacity(128);
+
+        let player_board = if color.to_bool() {
+            &self.player_prossesion[ColorType::White as usize]
+        } else {
+            &self.player_prossesion[ColorType::Black as usize]
+        };
+
+        for player_board_index in player_board.get_trues_iter() {
+            let move_board = self.get_able_move_squares(player_board_index);
+            vector_move.extend(move_board.get_trues_iter().map(|move_index| {
+                Move::from_standart(
+                    Address::from_number(player_board_index),
+                    Address::from_number(move_index),
+                    false,
+                )
+            }));
+
+            let pro_board = self.get_able_pro_move_squares(player_board_index, move_board);
+            vector_move.extend(pro_board.get_trues_iter().map(|move_index| {
+                Move::from_standart(
+                    Address::from_number(player_board_index),
+                    Address::from_number(move_index),
+                    true,
+                )
+            }));
+        }
+
+        let player_hand_pieces = self.hand.get_player_pieces(color);
+        for player_hand_piece in player_hand_pieces {
+            let move_board =
+                self.get_able_drop_squares(player_hand_piece.owner, player_hand_piece.piece_type);
+            vector_move.extend(move_board.get_trues_iter().map(|move_index| {
+                Move::from_drop(player_hand_piece, Address::from_number(move_index))
+            }));
+        }
+
+        vector_move
+    }
+
     pub fn execute_move(&mut self, moves: &Move) {
         let is_drop = moves.get_is_drop();
         let to_index = moves.get_to().to_index();

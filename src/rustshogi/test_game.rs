@@ -71,6 +71,39 @@ mod tests {
     }
 
     #[test]
+    fn test_game_random_move_parallel_performance() {
+        use std::time::Instant;
+
+        let mut game = Game::new();
+        game.input_board("startpos".to_string());
+        let num = 1000;
+
+        // シングルスレッドでの実行時間を測定
+        let start_single = Instant::now();
+        let _results_single = game.random_move_parallel(num, 1);
+        let duration_single = start_single.elapsed();
+
+        // マルチスレッドでの実行時間を測定（CPUコア数を使用）
+        let start_multi = Instant::now();
+        let _results_multi = game.random_move_parallel(num, num_cpus::get());
+        let duration_multi = start_multi.elapsed();
+
+        // 性能向上率を計算
+        let speedup = duration_single.as_nanos() as f64 / duration_multi.as_nanos() as f64;
+
+        println!("シングルスレッド実行時間: {:?}", duration_single);
+        println!("マルチスレッド実行時間: {:?}", duration_multi);
+        println!("性能向上率: {:.2}x", speedup);
+
+        // 1.5倍以上の性能向上をアサーション
+        assert!(
+            speedup >= 1.5,
+            "マルチスレッドはシングルスレッドの1.5倍以上速くあるべきです。実際の性能向上率: {:.2}x",
+            speedup
+        );
+    }
+
+    #[test]
     fn test_game_generate_random_board() {
         let mut game = Game::new();
         game.input_board("startpos".to_string());
