@@ -194,7 +194,7 @@ impl Game {
 
                             // Perform a random playout.
                             while !game_clone.is_finished().0 {
-                                let moves = game_clone.board.search_moves(game_clone.turn);
+                                let moves = game_clone.board.search_moves_no_cache(game_clone.turn);
                                 if moves.is_empty() {
                                     break;
                                 }
