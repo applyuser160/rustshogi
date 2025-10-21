@@ -8,6 +8,7 @@ from ._core import (
     Board,
     Game,
     MctsResult,
+    Evaluator,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "Board",
     "Game",
     "MctsResult",
+    "Evaluator",
 ]

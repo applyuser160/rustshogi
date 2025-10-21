@@ -127,3 +127,26 @@ class MctsResult:
     total_games: int
 
     def merge(self, other: MctsResult) -> None: ...
+
+class Evaluator:
+    def __init__(self, db_type: str, connection_string: str) -> None: ...
+    def init_database(self) -> None: ...
+    def generate_and_save_random_boards(self, count: int) -> int: ...
+    def update_records_with_random_games(
+        self,
+        trials_per_record: int,
+        max_records: int | None,
+        num_threads: int,
+    ) -> int: ...
+    def train_model(
+        self,
+        min_games: int,
+        learning_rate: float,
+        batch_size: int,
+        num_epochs: int,
+        model_save_path: str,
+    ) -> None: ...
+    def evaluate_position(
+        self, board: Board, model_path: str
+    ) -> tuple[float, float, float]: ...
+    def get_database_stats(self) -> tuple[int, int, int]: ...

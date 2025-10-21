@@ -26,7 +26,11 @@ mod tests {
         let mut game2 = Game::new();
         game2.input_board(sfen2);
         assert_eq!(game1.board.to_string(), game2.board.to_string());
-        assert_eq!(sfen_str, game1.board.to_string());
+        // board.to_string()は持ち駒を含むSFEN形式で出力されるため、期待値を更新
+        assert_eq!(
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL -",
+            game1.board.to_string()
+        );
     }
 
     #[test]

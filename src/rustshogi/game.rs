@@ -135,6 +135,10 @@ impl Game {
     pub fn random_play(&mut self) -> Self {
         while !self.is_finished().0 {
             let moves = self.board.search_moves(self.turn);
+            if moves.is_empty() {
+                break;
+            }
+
             let mut random = Random::new(0, (moves.len() - 1) as u16);
             let amove = &moves[random.generate_one() as usize];
             self.execute_move(amove);
@@ -220,12 +224,268 @@ impl Game {
         results
     }
 
+    pub fn random_move_sequential(&self, num: usize) -> Vec<MctsResult> {
+        let next_moves = self.board.search_moves(self.turn);
+        let next_move_count = next_moves.len();
+
+        if next_move_count == 0 {
+            return vec![];
+        }
+
+        // 各手に対してMctsResultを初期化
+        let mut results: Vec<MctsResult> = next_moves
+            .iter()
+            .map(|mv| MctsResult::from(self.board.clone(), mv.clone()))
+            .collect();
+
+        // 順次処理でシミュレーションを実行
+        for _i in 0..num {
+            // ランダムに手を選択
+            let mut random = Random::new(0, (next_move_count - 1) as u16);
+            let selected_move_index = random.generate_one() as usize;
+
+            // 選択された手でゲームを開始
+            let mut game_clone = self.clone();
+            game_clone.execute_move(&next_moves[selected_move_index]);
+
+            // ランダムプレイでゲーム終了まで実行
+            while !game_clone.is_finished().0 {
+                let moves = game_clone.board.search_moves(game_clone.turn);
+                if moves.is_empty() {
+                    break;
+                }
+                let move_count = moves.len();
+                let mut random = Random::new(0, (move_count - 1) as u16);
+                let random_move = &moves[random.generate_one() as usize];
+                game_clone.execute_move(random_move);
+            }
+
+            let (_is_finished, winner) = game_clone.is_finished();
+            results[selected_move_index].plus_result(winner);
+        }
+
+        results
+    }
+
+    pub fn random_move_parallel_chunked(&self, num: usize, num_threads: usize) -> Vec<MctsResult> {
+        let next_moves = self.board.search_moves(self.turn);
+        let next_move_count = next_moves.len();
+
+        if next_move_count == 0 {
+            return vec![];
+        }
+
+        // 各手に対してMctsResultを初期化
+        let mut results: Vec<MctsResult> = next_moves
+            .iter()
+            .map(|mv| MctsResult::from(self.board.clone(), mv.clone()))
+            .collect();
+
+        // チャンクサイズを計算（各スレッドに均等に分散）
+        let chunk_size = num.div_ceil(num_threads);
+
+        // スレッドプールを設定
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap();
+
+        // 各スレッドでチャンクを処理
+        let chunk_results: Vec<Vec<(ColorType, usize)>> = pool.install(|| {
+            (0..num_threads)
+                .into_par_iter()
+                .map(|thread_id| {
+                    let start = thread_id * chunk_size;
+                    let end = std::cmp::min(start + chunk_size, num);
+                    let mut thread_results = Vec::new();
+
+                    for _i in start..end {
+                        // ランダムに手を選択
+                        let mut random = Random::new(0, (next_move_count - 1) as u16);
+                        let selected_move_index = random.generate_one() as usize;
+
+                        // 選択された手でゲームを開始
+                        let mut game_clone = self.clone();
+                        game_clone.execute_move(&next_moves[selected_move_index]);
+
+                        // ランダムプレイでゲーム終了まで実行
+                        while !game_clone.is_finished().0 {
+                            let moves = game_clone.board.search_moves(game_clone.turn);
+                            if moves.is_empty() {
+                                break;
+                            }
+                            let move_count = moves.len();
+                            let mut random = Random::new(0, (move_count - 1) as u16);
+                            let random_move = &moves[random.generate_one() as usize];
+                            game_clone.execute_move(random_move);
+                        }
+
+                        let (_is_finished, winner) = game_clone.is_finished();
+                        thread_results.push((winner, selected_move_index));
+                    }
+
+                    thread_results
+                })
+                .collect()
+        });
+
+        // 結果を統合
+        for thread_result in chunk_results {
+            for (winner, move_index) in thread_result {
+                results[move_index].plus_result(winner);
+            }
+        }
+
+        results
+    }
+
+    pub fn random_move_parallel_thread_local(
+        &self,
+        num: usize,
+        num_threads: usize,
+    ) -> Vec<MctsResult> {
+        let next_moves = self.board.search_moves(self.turn);
+        let next_move_count = next_moves.len();
+
+        if next_move_count == 0 {
+            return vec![];
+        }
+
+        // スレッドプールを設定
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap();
+
+        // スレッドローカルで結果を集計
+        let results: Vec<MctsResult> = pool.install(|| {
+            use std::sync::Mutex;
+            let results = Mutex::new(vec![
+                MctsResult::from(
+                    self.board.clone(),
+                    next_moves[0].clone()
+                );
+                next_move_count
+            ]);
+
+            (0..num).into_par_iter().for_each(|_| {
+                // ランダムに手を選択
+                let mut random = Random::new(0, (next_move_count - 1) as u16);
+                let selected_move_index = random.generate_one() as usize;
+
+                // 選択された手でゲームを開始
+                let mut game_clone = self.clone();
+                game_clone.execute_move(&next_moves[selected_move_index]);
+
+                // ランダムプレイでゲーム終了まで実行
+                while !game_clone.is_finished().0 {
+                    let moves = game_clone.board.search_moves(game_clone.turn);
+                    if moves.is_empty() {
+                        break;
+                    }
+                    let move_count = moves.len();
+                    let mut random = Random::new(0, (move_count - 1) as u16);
+                    let random_move = &moves[random.generate_one() as usize];
+                    game_clone.execute_move(random_move);
+                }
+
+                let (_is_finished, winner) = game_clone.is_finished();
+
+                // 結果をスレッドセーフに更新
+                if let Ok(mut results_guard) = results.lock() {
+                    results_guard[selected_move_index].plus_result(winner);
+                }
+            });
+
+            results.into_inner().unwrap()
+        });
+
+        results
+    }
+
+    pub fn random_move_parallel_batched(&self, num: usize, num_threads: usize) -> Vec<MctsResult> {
+        let next_moves = self.board.search_moves(self.turn);
+        let next_move_count = next_moves.len();
+
+        if next_move_count == 0 {
+            return vec![];
+        }
+
+        // 各手に対してMctsResultを初期化
+        let mut results: Vec<MctsResult> = next_moves
+            .iter()
+            .map(|mv| MctsResult::from(self.board.clone(), mv.clone()))
+            .collect();
+
+        // バッチサイズを計算（各スレッドが処理するバッチ数）
+        let batch_size = std::cmp::max(1, num / (num_threads * 4)); // 各スレッドに4つのバッチを割り当て
+
+        // スレッドプールを設定
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap();
+
+        // バッチ単位で並列処理
+        let batch_results: Vec<Vec<(ColorType, usize)>> = pool.install(|| {
+            let num_batches = num.div_ceil(batch_size);
+            (0..num_batches)
+                .into_par_iter()
+                .map(|batch_id| {
+                    let batch_start = batch_id * batch_size;
+                    let batch_end = std::cmp::min(batch_start + batch_size, num);
+                    let mut batch_results = Vec::new();
+
+                    for _i in batch_start..batch_end {
+                        // ランダムに手を選択
+                        let mut random = Random::new(0, (next_move_count - 1) as u16);
+                        let selected_move_index = random.generate_one() as usize;
+
+                        // 選択された手でゲームを開始
+                        let mut game_clone = self.clone();
+                        game_clone.execute_move(&next_moves[selected_move_index]);
+
+                        // ランダムプレイでゲーム終了まで実行
+                        while !game_clone.is_finished().0 {
+                            let moves = game_clone.board.search_moves(game_clone.turn);
+                            if moves.is_empty() {
+                                break;
+                            }
+                            let move_count = moves.len();
+                            let mut random = Random::new(0, (move_count - 1) as u16);
+                            let random_move = &moves[random.generate_one() as usize];
+                            game_clone.execute_move(random_move);
+                        }
+
+                        let (_is_finished, winner) = game_clone.is_finished();
+                        batch_results.push((winner, selected_move_index));
+                    }
+
+                    batch_results
+                })
+                .collect()
+        });
+
+        // 結果を統合
+        for batch_result in batch_results {
+            for (winner, move_index) in batch_result {
+                results[move_index].plus_result(winner);
+            }
+        }
+
+        results
+    }
+
     pub fn generate_random_board(&mut self) -> Board {
-        let mut random = Random::new(0, 300);
+        let mut random = Random::new(0, 150);
         let move_count = random.generate_one() as usize;
 
         for _ in 0..move_count {
             let moves = self.board.search_moves(self.turn);
+            if moves.is_empty() {
+                break;
+            }
+
             let mut random = Random::new(0, (moves.len() - 1) as u16);
             let amove = &moves[random.generate_one() as usize].clone();
             self.execute_move(amove);
