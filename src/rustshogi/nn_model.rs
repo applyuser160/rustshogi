@@ -25,9 +25,9 @@ impl Default for NnModelConfig {
     fn default() -> Self {
         Self {
             input_dim: 2320,
-            hidden_dims: vec![512, 256, 128], // 3つの隠れ層
+            hidden_dims: vec![4096, 2048, 1024, 256], // 4つの隠れ層
             output_dim: 3,
-            dropout_rate: 0.1,
+            dropout_rate: 0.3,
         }
     }
 }
