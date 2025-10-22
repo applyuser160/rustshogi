@@ -4,6 +4,8 @@ use super::game::Game;
 use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
+use burn::module::Module;
+use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder};
 use pyo3::prelude::*;
 use rand;
 use serde::{Deserialize, Serialize};
@@ -471,16 +473,29 @@ impl Evaluator {
 
         let device = NdArrayDevice::default();
         let model_config = NnModelConfig::default();
-        let model: NnModel<Autodiff<NdArray>> = NnModel::new(&model_config, &device);
+
+        let model: NnModel<Autodiff<NdArray>>;
+        if Path::new(&model_save_path).exists() {
+            let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+            model = NnModel::new(&model_config, &device).load_file(
+                &model_save_path,
+                &recorder,
+                &device,
+            )?;
+        } else {
+            model = NnModel::new(&model_config, &device);
+        }
 
         match model.train(&training_data, &training_config, &device) {
             Ok(trained_model) => {
                 println!("モデルの訓練が完了しました");
 
-                if let Err(e) = trained_model.save(&model_save_path) {
+                let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+
+                if let Err(e) = trained_model.clone().save_file(&model_save_path, &recorder) {
                     eprintln!("モデルの保存に失敗しました: {}", e);
                 } else {
-                    println!("モデルを保存しました: {}", model_save_path);
+                    println!("モデルを保存しました: {}", &model_save_path);
                 }
             }
             Err(e) => {
@@ -504,16 +519,11 @@ impl Evaluator {
         board: &Board,
         model_path: &str,
     ) -> Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>> {
-        if !Path::new(model_path).exists() {
-            return Err(format!("モデルファイルが見つかりません: {}", model_path).into());
-        }
-
         let device = NdArrayDevice::default();
-        let model: NnModel<Autodiff<NdArray>> = NnModel::load(model_path, &device).map_err(
-            |e| -> Box<dyn std::error::Error + Send + Sync> {
-                format!("モデルの読み込みに失敗しました: {}", e).into()
-            },
-        )?;
+        let model_config = NnModelConfig::default();
+        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+        let model: NnModel<Autodiff<NdArray>> =
+            NnModel::new(&model_config, &device).load_file(model_path, &recorder, &device)?;
 
         let board_vector = board.to_vector(None);
         let prediction = model.predict_single(board_vector);
