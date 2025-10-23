@@ -383,6 +383,8 @@ impl Evaluator {
         training_config: TrainingConfig,
         model_save_path: String,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let start_time = Instant::now();
+        println!("モデルの訓練を開始します...");
         let records = match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
@@ -446,23 +448,47 @@ impl Evaluator {
 
         let mut training_data = TrainingData::new();
 
-        for (board_sfen, white_wins, black_wins, total_games) in records {
-            let board = Board::from_sfen(board_sfen);
+        // 事前に容量を確保（メモリ効率化）
+        training_data.inputs.reserve(records.len());
+        training_data.targets.reserve(records.len());
+
+        println!("{}個のレコードを処理中...", records.len());
+        let processing_start = Instant::now();
+
+        for (i, (board_sfen, white_wins, black_wins, total_games)) in records.iter().enumerate() {
+            let board = Board::from_sfen(board_sfen.clone());
             let board_vector = board.to_vector(None);
 
-            let white_win_rate = if total_games > 0 {
-                white_wins as f32 / total_games as f32
+            let white_win_rate = if *total_games > 0 {
+                *white_wins as f32 / *total_games as f32
             } else {
                 0.5
             };
-            let black_win_rate = if total_games > 0 {
-                black_wins as f32 / total_games as f32
+            let black_win_rate = if *total_games > 0 {
+                *black_wins as f32 / *total_games as f32
             } else {
                 0.5
+            };
+            let draw_rate = if *total_games > 0 {
+                (*total_games - *white_wins - *black_wins) as f32 / *total_games as f32
+            } else {
+                0.0
             };
 
-            let target = vec![white_win_rate, black_win_rate, total_games as f32];
+            let target = vec![white_win_rate, black_win_rate, draw_rate];
             training_data.add_sample(board_vector, target);
+
+            // 進捗表示（1000個ごと）
+            if (i + 1) % 1000 == 0 {
+                let elapsed = processing_start.elapsed();
+                println!(
+                    "処理済み: {}/{} ({:.1}%) - 経過時間: {:.2}秒",
+                    i + 1,
+                    records.len(),
+                    (i + 1) as f64 / records.len() as f64 * 100.0,
+                    elapsed.as_secs_f64()
+                );
+            }
         }
 
         if training_data.is_empty() {
@@ -488,7 +514,11 @@ impl Evaluator {
 
         match model.train(&training_data, &training_config, &device) {
             Ok(trained_model) => {
-                println!("モデルの訓練が完了しました");
+                let training_elapsed = start_time.elapsed();
+                println!(
+                    "モデルの訓練が完了しました (訓練時間: {:.2}秒)",
+                    training_elapsed.as_secs_f64()
+                );
 
                 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
 
@@ -503,6 +533,8 @@ impl Evaluator {
             }
         }
 
+        let total_elapsed = start_time.elapsed();
+        println!("モデル訓練の総時間: {:.2}秒", total_elapsed.as_secs_f64());
         Ok(())
     }
 
@@ -513,7 +545,7 @@ impl Evaluator {
     /// * `model_path` - モデルファイルのパス
     ///
     /// # Returns
-    /// * `Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>>` - (白の勝率予測, 黒の勝率予測, 総ゲーム数予測)
+    /// * `Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>>` - (白の勝率予測, 黒の勝率予測, 引き分け率予測)
     pub fn evaluate_position(
         &self,
         board: &Board,
@@ -530,9 +562,9 @@ impl Evaluator {
 
         let white_win_rate = prediction.clone().slice([0..1]).into_scalar();
         let black_win_rate = prediction.clone().slice([1..2]).into_scalar();
-        let total_games = prediction.slice([2..3]).into_scalar();
+        let draw_rate = prediction.slice([2..3]).into_scalar();
 
-        Ok((white_win_rate, black_win_rate, total_games))
+        Ok((white_win_rate, black_win_rate, draw_rate))
     }
 
     /// データベースの統計情報を取得
@@ -638,6 +670,35 @@ impl Evaluator {
             batch_size,
             num_epochs,
             model_save_path: model_save_path.clone(),
+            use_lr_scheduling: true,
+            use_early_stopping: true,
+            early_stopping_patience: 10,
+        };
+
+        self.train_model(min_games, training_config, model_save_path)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "train_model_advanced")]
+    pub fn python_train_model_advanced(
+        &self,
+        min_games: i32,
+        learning_rate: f64,
+        batch_size: usize,
+        num_epochs: usize,
+        model_save_path: String,
+        use_lr_scheduling: bool,
+        use_early_stopping: bool,
+        early_stopping_patience: usize,
+    ) -> PyResult<()> {
+        let training_config = TrainingConfig {
+            learning_rate,
+            batch_size,
+            num_epochs,
+            model_save_path: model_save_path.clone(),
+            use_lr_scheduling,
+            use_early_stopping,
+            early_stopping_patience,
         };
 
         self.train_model(min_games, training_config, model_save_path)
