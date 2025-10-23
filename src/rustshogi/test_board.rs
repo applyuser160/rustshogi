@@ -7,7 +7,7 @@ mod tests {
         board::Board,
         color::ColorType,
         moves::Move,
-        piece::PieceType,
+        piece::{Piece, PieceType},
     };
 
     #[test]
@@ -129,32 +129,14 @@ mod tests {
     }
 
     #[test]
-    fn test_board_from_sfen_startpos() {
-        let mut board = Board::new();
-        board.startpos();
+    fn test_board_to_string() {
+        let board = Board::from_sfen(
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL -".to_string(),
+        );
         let sfen = board.to_string();
-
-        let board_from_sfen = Board::from_sfen(sfen);
-
-        // 基本的な駒の配置をチェック（実際の盤面の位置を確認）
-        // 初期配置では、1行目（index 12-20）に先手の駒が配置される
-        // ただし、実際の位置を確認するために、元のboardと比較
         assert_eq!(
-            board_from_sfen.get_piece_type_from_index(12),
-            board.get_piece_type_from_index(12)
-        );
-        assert_eq!(
-            board_from_sfen.get_color_type_from_index(12),
-            board.get_color_type_from_index(12)
-        );
-        // 9行目（index 78-86）に後手の駒が配置される
-        assert_eq!(
-            board_from_sfen.get_piece_type_from_index(78),
-            board.get_piece_type_from_index(78)
-        );
-        assert_eq!(
-            board_from_sfen.get_color_type_from_index(78),
-            board.get_color_type_from_index(78)
+            sfen,
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL -"
         );
     }
 
@@ -168,6 +150,48 @@ mod tests {
         let sfen2 = board2.to_string();
 
         assert_eq!(sfen1, sfen2);
+    }
+
+    #[test]
+    fn test_board_sfen_with_promoted_pieces() {
+        let mut board = Board::new();
+
+        // 成り駒を配置してテスト
+        board.deploy(
+            Address::from_numbers(5, 5).to_index(),
+            PieceType::Dragon, // 成り飛車
+            ColorType::Black,
+        );
+
+        board.deploy(
+            Address::from_numbers(4, 4).to_index(),
+            PieceType::Horse, // 成り角
+            ColorType::White,
+        );
+
+        board.deploy(
+            Address::from_numbers(3, 3).to_index(),
+            PieceType::ProSilver, // 成り銀
+            ColorType::Black,
+        );
+
+        // SFEN文字列を生成して確認
+        let sfen = board.to_string();
+        println!("SFEN with promoted pieces: {}", sfen);
+
+        // 成り駒が+付きで表示されることを確認
+        assert!(sfen.contains("+R")); // 成り飛車（黒）
+        assert!(sfen.contains("+b")); // 成り角（白）
+        assert!(sfen.contains("+S")); // 成り銀（黒）
+
+        // 個別の駒の表示もテスト
+        let dragon_piece = Piece::from(ColorType::Black, PieceType::Dragon);
+        let horse_piece = Piece::from(ColorType::White, PieceType::Horse);
+        let pro_silver_piece = Piece::from(ColorType::Black, PieceType::ProSilver);
+
+        assert_eq!(dragon_piece.to_string(), "+R");
+        assert_eq!(horse_piece.to_string(), "+b");
+        assert_eq!(pro_silver_piece.to_string(), "+S");
     }
 
     #[test]
