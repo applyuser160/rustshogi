@@ -13,8 +13,8 @@ fn test_nn_model_config() {
     // 設定が正しいことを確認
     assert_eq!(config.input_dim, 2320);
     assert_eq!(config.output_dim, 3);
-    assert_eq!(config.hidden_dims, vec![512, 256, 128]);
-    assert_eq!(config.dropout_rate, 0.1);
+    assert_eq!(config.hidden_dims, vec![1024, 512, 256]); // 3つの隠れ層
+    assert_eq!(config.dropout_rate, 0.3);
 }
 
 #[test]
@@ -23,9 +23,12 @@ fn test_training_config() {
 
     // 学習設定が正しいことを確認
     assert_eq!(config.learning_rate, 0.001);
-    assert_eq!(config.batch_size, 32);
+    assert_eq!(config.batch_size, 64); // デフォルト値が64に変更
     assert_eq!(config.num_epochs, 100);
     assert_eq!(config.model_save_path, "model.bin");
+    assert_eq!(config.use_lr_scheduling, true);
+    assert_eq!(config.use_early_stopping, true);
+    assert_eq!(config.early_stopping_patience, 10);
 }
 
 #[test]
@@ -83,16 +86,16 @@ fn test_model_save_load() {
     let save_data = super::nn_model::ModelSaveData {
         config: NnModelConfig::default(),
         hidden_layers_weights: vec![
-            vec![vec![1.0; 2320]; 512], // 入力層 -> 隠れ層1
-            vec![vec![1.0; 512]; 256],  // 隠れ層1 -> 隠れ層2
-            vec![vec![1.0; 256]; 128],  // 隠れ層2 -> 隠れ層3
+            vec![vec![1.0; 2320]; 1024], // 入力層 -> 隠れ層1
+            vec![vec![1.0; 1024]; 512],  // 隠れ層1 -> 隠れ層2
+            vec![vec![1.0; 512]; 256],   // 隠れ層2 -> 隠れ層3
         ],
         hidden_layers_bias: vec![
-            vec![0.0; 512], // 隠れ層1のバイアス
-            vec![0.0; 256], // 隠れ層2のバイアス
-            vec![0.0; 128], // 隠れ層3のバイアス
+            vec![0.0; 1024], // 隠れ層1のバイアス
+            vec![0.0; 512],  // 隠れ層2のバイアス
+            vec![0.0; 256],  // 隠れ層3のバイアス
         ],
-        output_layer_weights: vec![vec![1.0; 128]; 3],
+        output_layer_weights: vec![vec![1.0; 256]; 3],
         output_layer_bias: vec![0.0; 3],
     };
 
@@ -123,27 +126,27 @@ fn test_model_weights_access() {
     let weights = super::nn_model::ModelSaveData {
         config: NnModelConfig::default(),
         hidden_layers_weights: vec![
-            vec![vec![0.0; 2320]; 512], // 入力層 -> 隠れ層1
-            vec![vec![0.0; 512]; 256],  // 隠れ層1 -> 隠れ層2
-            vec![vec![0.0; 256]; 128],  // 隠れ層2 -> 隠れ層3
+            vec![vec![0.0; 2320]; 1024], // 入力層 -> 隠れ層1
+            vec![vec![0.0; 1024]; 512],  // 隠れ層1 -> 隠れ層2
+            vec![vec![0.0; 512]; 256],   // 隠れ層2 -> 隠れ層3
         ],
         hidden_layers_bias: vec![
-            vec![0.0; 512], // 隠れ層1のバイアス
-            vec![0.0; 256], // 隠れ層2のバイアス
-            vec![0.0; 128], // 隠れ層3のバイアス
+            vec![0.0; 1024], // 隠れ層1のバイアス
+            vec![0.0; 512],  // 隠れ層2のバイアス
+            vec![0.0; 256],  // 隠れ層3のバイアス
         ],
-        output_layer_weights: vec![vec![0.0; 128]; 3],
+        output_layer_weights: vec![vec![0.0; 256]; 3],
         output_layer_bias: vec![0.0; 3],
     };
 
     // 重みの構造を確認
     assert_eq!(weights.hidden_layers_weights.len(), 3);
-    assert_eq!(weights.hidden_layers_weights[0].len(), 512);
+    assert_eq!(weights.hidden_layers_weights[0].len(), 1024);
     assert_eq!(weights.hidden_layers_weights[0][0].len(), 2320);
     assert_eq!(weights.hidden_layers_bias.len(), 3);
-    assert_eq!(weights.hidden_layers_bias[0].len(), 512);
+    assert_eq!(weights.hidden_layers_bias[0].len(), 1024);
     assert_eq!(weights.output_layer_weights.len(), 3);
-    assert_eq!(weights.output_layer_weights[0].len(), 128);
+    assert_eq!(weights.output_layer_weights[0].len(), 256);
     assert_eq!(weights.output_layer_bias.len(), 3);
 }
 
@@ -173,6 +176,9 @@ fn test_training_with_optimization() {
         batch_size: 1,
         num_epochs: 5, // 短いエポック数でテスト
         model_save_path: "test_model.bin".to_string(),
+        use_lr_scheduling: true,
+        use_early_stopping: true,
+        early_stopping_patience: 10,
     };
 
     // モデルを作成（デバイスを明示的に指定しない）
@@ -219,6 +225,9 @@ fn test_training_full_with_autodiff() {
         batch_size: 2,
         num_epochs: 3, // 短いエポック数でテスト
         model_save_path: "test_model_full.bin".to_string(),
+        use_lr_scheduling: true,
+        use_early_stopping: true,
+        early_stopping_patience: 10,
     };
 
     // モデルを作成（デバイスを明示的に指定しない）

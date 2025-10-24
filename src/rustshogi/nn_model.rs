@@ -7,6 +7,7 @@ use burn::{
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use std::time::Instant;
 
 /// ニューラルネットワークモデルの設定
 #[derive(Debug, Config)]
@@ -15,7 +16,7 @@ pub struct NnModelConfig {
     pub input_dim: usize,
     /// 隠れ層の次元数のリスト
     pub hidden_dims: Vec<usize>,
-    /// 出力次元数（white_wins, black_wins, total_games: 3）
+    /// 出力次元数（white_wins, black_wins, draw_rate: 3）
     pub output_dim: usize,
     /// Dropout率
     pub dropout_rate: f64,
@@ -25,9 +26,9 @@ impl Default for NnModelConfig {
     fn default() -> Self {
         Self {
             input_dim: 2320,
-            hidden_dims: vec![512, 256, 128], // 3つの隠れ層
+            hidden_dims: vec![1024, 512, 256], // 3つの隠れ層
             output_dim: 3,
-            dropout_rate: 0.1,
+            dropout_rate: 0.3,
         }
     }
 }
@@ -37,7 +38,7 @@ impl Default for NnModelConfig {
 pub struct TrainingData {
     /// 入力データ（盤面ベクター）
     pub inputs: Vec<Vec<f32>>,
-    /// ターゲットデータ（white_wins, black_wins, total_games）
+    /// ターゲットデータ（white_wins, black_wins, draw_rate）
     pub targets: Vec<Vec<f32>>,
 }
 
@@ -78,21 +79,30 @@ impl TrainingData {
 pub struct TrainingConfig {
     /// 学習率
     pub learning_rate: f64,
-    /// バッチサイズ
+    /// バッチサイズ（1バッチあたりのサンプル数）
     pub batch_size: usize,
     /// エポック数
     pub num_epochs: usize,
     /// モデル保存パス
     pub model_save_path: String,
+    /// 学習率スケジューリングの有効化
+    pub use_lr_scheduling: bool,
+    /// 早期停止の有効化
+    pub use_early_stopping: bool,
+    /// 早期停止のパティエンス（エポック数）
+    pub early_stopping_patience: usize,
 }
 
 impl Default for TrainingConfig {
     fn default() -> Self {
         Self {
             learning_rate: 0.001,
-            batch_size: 32,
+            batch_size: 64,
             num_epochs: 100,
             model_save_path: "model.bin".to_string(),
+            use_lr_scheduling: true,
+            use_early_stopping: true,
+            early_stopping_patience: 10,
         }
     }
 }
@@ -166,7 +176,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
     /// * `Tensor<B, 2>` - 予測結果 (batch_size, 3)
     ///   - 出力[0]: white_wins の予測値
     ///   - 出力[1]: black_wins の予測値
-    ///   - 出力[2]: total_games の予測値
+    ///   - 出力[2]: draw_rate の予測値
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
         let mut hidden = input;
 
@@ -183,7 +193,10 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         }
 
         // 出力層: 最後の隠れ層 -> (batch_size, 3)
-        self.output_layer.forward(hidden)
+        let raw_output = self.output_layer.forward(hidden);
+
+        // 全ての出力にSigmoid（0.0～1.0）を適用
+        burn::tensor::activation::sigmoid(raw_output)
     }
 
     /// 単一の盤面ベクターから予測を実行
@@ -387,7 +400,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
 
 /// AutodiffBackend用の完全な学習実装
 impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
-    /// 完全に動作する学習機能（AutodiffBackend使用）
+    /// 最適化された学習機能（AutodiffBackend使用）
     ///
     /// # Arguments
     /// * `training_data` - 学習データ
@@ -406,66 +419,297 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
             return Err("学習データが空です".into());
         }
 
-        println!("完全に動作する学習を開始します（AutodiffBackend使用）...");
+        println!("最適化された学習を開始します（AutodiffBackend使用）...");
         println!("データサイズ: {}", training_data.len());
         println!("バッチサイズ: {}", training_config.batch_size);
         println!("エポック数: {}", training_config.num_epochs);
 
-        // Adamオプティマイザーを作成
+        // Adamオプティマイザーを作成（学習率スケジューリング対応）
         let optim_config = AdamConfig::new();
         let mut optim = optim_config.init();
 
+        // データの次元を定義
+        let input_dim = 2320;
+        let output_dim = 3;
+        let total_samples = training_data.len();
+
+        // バッチサイズを設定（ユーザー指定値をそのまま使用）
+        let batch_size = training_config.batch_size;
+
+        // データの整合性チェック
+        if total_samples == 0 {
+            return Err("学習データが空です".into());
+        }
+
+        // 最初のサンプルでデータ形状を確認
+        if !training_data.inputs.is_empty() && !training_data.targets.is_empty() {
+            let first_input_len = training_data.inputs[0].len();
+            let first_target_len = training_data.targets[0].len();
+
+            if first_input_len != input_dim {
+                return Err(format!(
+                    "入力データの次元が正しくありません。期待: {}, 実際: {}",
+                    input_dim, first_input_len
+                )
+                .into());
+            }
+            if first_target_len != output_dim {
+                return Err(format!(
+                    "ターゲットデータの次元が正しくありません。期待: {}, 実際: {}",
+                    output_dim, first_target_len
+                )
+                .into());
+            }
+        }
+
+        // パフォーマンス最適化: 全データを事前にテンソルに変換
+        println!("データの前処理を開始します（パフォーマンス最適化）...");
+        let preprocessing_start = Instant::now();
+
+        // メモリ効率化: 事前に容量を確保して一度にデータをコピー
+        let mut all_inputs = Vec::with_capacity(total_samples * input_dim);
+        let mut all_targets = Vec::with_capacity(total_samples * output_dim);
+
+        // パフォーマンス最適化: バッチ単位でデータをコピー
+        for i in 0..total_samples {
+            all_inputs.extend_from_slice(&training_data.inputs[i]);
+            all_targets.extend_from_slice(&training_data.targets[i]);
+        }
+
+        // パフォーマンス最適化: 一度にテンソルを作成
+        let _input_tensor = Tensor::<B, 1>::from_floats(all_inputs.as_slice(), device)
+            .reshape([total_samples, input_dim]);
+        let _target_tensor = Tensor::<B, 1>::from_floats(all_targets.as_slice(), device)
+            .reshape([total_samples, output_dim]);
+
+        // メモリ解放: 元のデータをクリア
+        drop(all_inputs);
+        drop(all_targets);
+
+        let preprocessing_elapsed = preprocessing_start.elapsed();
+        println!(
+            "データの前処理が完了しました (処理時間: {:.2}秒)",
+            preprocessing_elapsed.as_secs_f64()
+        );
+        println!(
+            "総サンプル数: {}, 入力次元: {}, 出力次元: {}",
+            total_samples, input_dim, output_dim
+        );
+        println!(
+            "学習設定: 学習率={}, エポック数={}, 学習率スケジューリング={}, 早期停止={}",
+            training_config.learning_rate,
+            training_config.num_epochs,
+            training_config.use_lr_scheduling,
+            training_config.use_early_stopping
+        );
+
+        // 学習開始時間を記録
+        let training_start_time = Instant::now();
+
+        // 早期停止用の変数
+        let mut best_loss = f32::INFINITY;
+        let mut patience_counter = 0;
+        let mut total_batch_count = 0;
+
         // エポックごとの学習
         for epoch in 0..training_config.num_epochs {
+            let _epoch_start_time = Instant::now();
             let mut total_loss = 0.0;
             let mut batch_count = 0;
 
+            // 学習率スケジューリング（エポックに応じて学習率を調整）
+            let current_lr = if training_config.use_lr_scheduling {
+                training_config.learning_rate * (0.95_f64.powi(epoch as i32))
+            } else {
+                training_config.learning_rate
+            };
+
+            // パフォーマンス最適化: エポックごとにテンソルを再作成（所有権問題の回避）
+            let mut epoch_inputs = Vec::with_capacity(total_samples * input_dim);
+            let mut epoch_targets = Vec::with_capacity(total_samples * output_dim);
+
+            for i in 0..total_samples {
+                epoch_inputs.extend_from_slice(&training_data.inputs[i]);
+                epoch_targets.extend_from_slice(&training_data.targets[i]);
+            }
+
+            let epoch_input_tensor = Tensor::<B, 1>::from_floats(epoch_inputs.as_slice(), device)
+                .reshape([total_samples, input_dim]);
+            let epoch_target_tensor = Tensor::<B, 1>::from_floats(epoch_targets.as_slice(), device)
+                .reshape([total_samples, output_dim]);
+
             // バッチごとの学習
-            for batch_start in (0..training_data.len()).step_by(training_config.batch_size) {
-                let batch_end = (batch_start + training_config.batch_size).min(training_data.len());
+            let total_batches = total_samples.div_ceil(batch_size);
 
-                // バッチデータを作成
-                let mut batch_inputs = Vec::new();
-                let mut batch_targets = Vec::new();
+            // 時間予測の計算
+            let epoch_start_time = std::time::SystemTime::now();
+            let estimated_epoch_duration = if epoch > 0 {
+                // 前のエポックの実績から予測
 
-                for i in batch_start..batch_end {
-                    batch_inputs.extend_from_slice(&training_data.inputs[i]);
-                    batch_targets.extend_from_slice(&training_data.targets[i]);
-                }
+                epoch_start_time
+                    .duration_since(epoch_start_time)
+                    .unwrap_or_default()
+            } else {
+                // 初回は概算（バッチ数 × 0.005秒）
+                std::time::Duration::from_millis((total_batches * 5) as u64)
+            };
 
-                // テンソルに変換
-                let batch_size = batch_end - batch_start;
+            let estimated_end_time = epoch_start_time + estimated_epoch_duration;
+            let end_time_str = chrono::DateTime::<chrono::Local>::from(estimated_end_time)
+                .format("%H:%M:%S")
+                .to_string();
 
-                // 1次元配列から2次元テンソルを作成
-                let input_tensor = Tensor::<B, 1>::from_floats(batch_inputs.as_slice(), device)
-                    .reshape([batch_size, 2320]);
+            println!(
+                "エポック {} 開始: {} バッチを処理します (バッチサイズ: {})",
+                epoch, total_batches, batch_size
+            );
+            println!(
+                "⏰ 予想終了時間: {} (推定時間: {:.1}分)",
+                end_time_str,
+                estimated_epoch_duration.as_secs_f64() / 60.0
+            );
 
-                let target_tensor = Tensor::<B, 1>::from_floats(batch_targets.as_slice(), device)
-                    .reshape([batch_size, 3]);
+            for batch_start in (0..total_samples).step_by(batch_size) {
+                let batch_end = (batch_start + batch_size).min(total_samples);
+
+                // パフォーマンス最適化: スライス操作でバッチデータを取得
+                let batch_input = epoch_input_tensor.clone().slice([batch_start..batch_end]);
+                let batch_target = epoch_target_tensor.clone().slice([batch_start..batch_end]);
 
                 // フォワードパス
-                let predictions = self.forward(input_tensor.clone());
+                let predictions = self.forward(batch_input);
 
                 // 損失計算（平均二乗誤差）
-                let loss = mse_loss_autodiff(&predictions, &target_tensor);
+                let loss = mse_loss_autodiff(&predictions, &batch_target);
                 let loss_value: f32 = loss.clone().into_scalar();
                 total_loss += loss_value;
 
                 // バックプロパゲーションと最適化
                 let grads = loss.backward();
                 let grads_params = GradientsParams::from_grads(grads, &self);
-                self = optim.step(training_config.learning_rate, self, grads_params);
+                self = optim.step(current_lr, self, grads_params);
 
                 batch_count += 1;
+                total_batch_count += 1;
+
+                // パフォーマンス最適化: 進捗表示（10バッチごと）
+                if batch_count % 10 == 0 {
+                    let elapsed = epoch_start_time.elapsed().unwrap_or_default();
+                    let samples_per_sec = (batch_count * batch_size) as f64 / elapsed.as_secs_f64();
+
+                    // 残り時間の計算
+                    let progress = batch_count as f64 / total_batches as f64;
+                    let estimated_remaining = if progress > 0.0 {
+                        elapsed.as_secs_f64() * (1.0 - progress) / progress
+                    } else {
+                        0.0
+                    };
+
+                    // 現在時刻と予想終了時刻
+                    let now = std::time::SystemTime::now();
+                    let estimated_end =
+                        now + std::time::Duration::from_secs(estimated_remaining as u64);
+                    let end_time_str = chrono::DateTime::<chrono::Local>::from(estimated_end)
+                        .format("%H:%M:%S")
+                        .to_string();
+
+                    println!("エポック {}: バッチ {}/{} ({:.1}%) - 損失: {:.6} - 速度: {:.0} サンプル/秒",
+                        epoch, batch_count, total_batches, progress * 100.0, loss_value, samples_per_sec);
+                    println!(
+                        "⏱️  残り時間: {:.1}分 - 予想終了: {}",
+                        estimated_remaining / 60.0,
+                        end_time_str
+                    );
+                }
             }
 
             let avg_loss = total_loss / batch_count as f32;
-            if epoch % 10 == 0 || epoch == training_config.num_epochs - 1 {
-                println!("エポック {}: 平均損失 = {:.6}", epoch, avg_loss);
+            let epoch_elapsed = epoch_start_time.elapsed().unwrap_or_default();
+            let total_elapsed = training_start_time.elapsed();
+
+            // パフォーマンス最適化: エポック統計の表示
+            let samples_per_sec = total_samples as f64 / epoch_elapsed.as_secs_f64();
+            let epoch_end_time = std::time::SystemTime::now();
+            let end_time_str = chrono::DateTime::<chrono::Local>::from(epoch_end_time)
+                .format("%H:%M:%S")
+                .to_string();
+
+            println!(
+                "エポック {} 完了: 平均損失 = {:.6}, 経過時間 = {:.2}秒, 速度 = {:.0} サンプル/秒",
+                epoch,
+                avg_loss,
+                epoch_elapsed.as_secs_f64(),
+                samples_per_sec
+            );
+            println!("⏰ エポック終了時刻: {}", end_time_str);
+
+            // 早期停止のチェック
+            if training_config.use_early_stopping {
+                if avg_loss < best_loss {
+                    best_loss = avg_loss;
+                    patience_counter = 0;
+                    println!("✅ エポック {}: 新しい最良損失 = {:.6}", epoch, avg_loss);
+                } else {
+                    patience_counter += 1;
+                    println!(
+                        "⚠️  エポック {}: 損失改善なし (パティエンス: {}/{})",
+                        epoch, patience_counter, training_config.early_stopping_patience
+                    );
+                }
+
+                if patience_counter >= training_config.early_stopping_patience {
+                    println!(
+                        "🛑 早期停止: エポック {} で学習を終了 (パティエンス: {})",
+                        epoch, training_config.early_stopping_patience
+                    );
+                    break;
+                }
             }
+
+            println!(
+                "📊 エポック {} 完了: 平均損失 = {:.6}, 学習率 = {:.6}",
+                epoch, avg_loss, current_lr
+            );
+            println!(
+                "⏱️  エポック時間: {:.2}秒, 総時間: {:.2}秒",
+                epoch_elapsed.as_secs_f64(),
+                total_elapsed.as_secs_f64()
+            );
+            println!("{}", "=".repeat(60));
         }
 
-        println!("学習が完了しました");
+        let total_elapsed = training_start_time.elapsed();
+        let total_samples_processed = total_batch_count * batch_size;
+        let overall_samples_per_sec = total_samples_processed as f64 / total_elapsed.as_secs_f64();
+
+        // 全体の終了時間予測
+        let training_end_time = std::time::SystemTime::now();
+        let end_time_str = chrono::DateTime::<chrono::Local>::from(training_end_time)
+            .format("%H:%M:%S")
+            .to_string();
+
+        // 残りエポックの予測
+        let remaining_epochs =
+            training_config.num_epochs - (total_batch_count / total_samples.div_ceil(batch_size));
+        let _estimated_remaining_time = if remaining_epochs > 0 {
+            let avg_epoch_time = total_elapsed.as_secs_f64()
+                / (total_batch_count / total_samples.div_ceil(batch_size)) as f64;
+            avg_epoch_time * remaining_epochs as f64
+        } else {
+            0.0
+        };
+
+        println!("🎉 学習が完了しました！");
+        println!(
+            "⏱️  総学習時間: {:.2}秒 ({:.2}分)",
+            total_elapsed.as_secs_f64(),
+            total_elapsed.as_secs_f64() / 60.0
+        );
+        println!("⏰ 学習終了時刻: {}", end_time_str);
+        println!("📊 パフォーマンス統計: 総バッチ数 = {}, 総サンプル数 = {}, 全体速度 = {:.0} サンプル/秒",
+            total_batch_count, total_samples_processed, overall_samples_per_sec);
+        println!("📈 最終損失: {:.6}", best_loss);
+        println!("🔧 処理された総バッチ数: {}", total_batch_count);
         Ok(self)
     }
 }

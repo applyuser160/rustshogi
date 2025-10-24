@@ -4,6 +4,8 @@ use super::game::Game;
 use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
+use burn::module::Module;
+use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder};
 use pyo3::prelude::*;
 use rand;
 use serde::{Deserialize, Serialize};
@@ -455,6 +457,8 @@ impl Evaluator {
         training_config: TrainingConfig,
         model_save_path: String,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let start_time = Instant::now();
+        println!("モデルの訓練を開始します...");
         let records = match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
@@ -518,23 +522,47 @@ impl Evaluator {
 
         let mut training_data = TrainingData::new();
 
-        for (board_sfen, white_wins, black_wins, total_games) in records {
-            let board = Board::from_sfen(board_sfen);
+        // 事前に容量を確保（メモリ効率化）
+        training_data.inputs.reserve(records.len());
+        training_data.targets.reserve(records.len());
+
+        println!("{}個のレコードを処理中...", records.len());
+        let processing_start = Instant::now();
+
+        for (i, (board_sfen, white_wins, black_wins, total_games)) in records.iter().enumerate() {
+            let board = Board::from_sfen(board_sfen.clone());
             let board_vector = board.to_vector(None);
 
-            let white_win_rate = if total_games > 0 {
-                white_wins as f32 / total_games as f32
+            let white_win_rate = if *total_games > 0 {
+                *white_wins as f32 / *total_games as f32
             } else {
                 0.5
             };
-            let black_win_rate = if total_games > 0 {
-                black_wins as f32 / total_games as f32
+            let black_win_rate = if *total_games > 0 {
+                *black_wins as f32 / *total_games as f32
             } else {
                 0.5
+            };
+            let draw_rate = if *total_games > 0 {
+                (*total_games - *white_wins - *black_wins) as f32 / *total_games as f32
+            } else {
+                0.0
             };
 
-            let target = vec![white_win_rate, black_win_rate, total_games as f32];
+            let target = vec![white_win_rate, black_win_rate, draw_rate];
             training_data.add_sample(board_vector, target);
+
+            // 進捗表示（1000個ごと）
+            if (i + 1) % 1000 == 0 {
+                let elapsed = processing_start.elapsed();
+                println!(
+                    "処理済み: {}/{} ({:.1}%) - 経過時間: {:.2}秒",
+                    i + 1,
+                    records.len(),
+                    (i + 1) as f64 / records.len() as f64 * 100.0,
+                    elapsed.as_secs_f64()
+                );
+            }
         }
 
         if training_data.is_empty() {
@@ -545,16 +573,33 @@ impl Evaluator {
 
         let device = NdArrayDevice::default();
         let model_config = NnModelConfig::default();
-        let model: NnModel<Autodiff<NdArray>> = NnModel::new(&model_config, &device);
+
+        let model: NnModel<Autodiff<NdArray>>;
+        if Path::new(&model_save_path).exists() {
+            let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+            model = NnModel::new(&model_config, &device).load_file(
+                &model_save_path,
+                &recorder,
+                &device,
+            )?;
+        } else {
+            model = NnModel::new(&model_config, &device);
+        }
 
         match model.train(&training_data, &training_config, &device) {
             Ok(trained_model) => {
-                println!("モデルの訓練が完了しました");
+                let training_elapsed = start_time.elapsed();
+                println!(
+                    "モデルの訓練が完了しました (訓練時間: {:.2}秒)",
+                    training_elapsed.as_secs_f64()
+                );
 
-                if let Err(e) = trained_model.save(&model_save_path) {
+                let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+
+                if let Err(e) = trained_model.clone().save_file(&model_save_path, &recorder) {
                     eprintln!("モデルの保存に失敗しました: {}", e);
                 } else {
-                    println!("モデルを保存しました: {}", model_save_path);
+                    println!("モデルを保存しました: {}", &model_save_path);
                 }
             }
             Err(e) => {
@@ -562,6 +607,8 @@ impl Evaluator {
             }
         }
 
+        let total_elapsed = start_time.elapsed();
+        println!("モデル訓練の総時間: {:.2}秒", total_elapsed.as_secs_f64());
         Ok(())
     }
 
@@ -572,31 +619,26 @@ impl Evaluator {
     /// * `model_path` - モデルファイルのパス
     ///
     /// # Returns
-    /// * `Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>>` - (白の勝率予測, 黒の勝率予測, 総ゲーム数予測)
+    /// * `Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>>` - (白の勝率予測, 黒の勝率予測, 引き分け率予測)
     pub fn evaluate_position(
         &self,
         board: &Board,
         model_path: &str,
     ) -> Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>> {
-        if !Path::new(model_path).exists() {
-            return Err(format!("モデルファイルが見つかりません: {}", model_path).into());
-        }
-
         let device = NdArrayDevice::default();
-        let model: NnModel<Autodiff<NdArray>> = NnModel::load(model_path, &device).map_err(
-            |e| -> Box<dyn std::error::Error + Send + Sync> {
-                format!("モデルの読み込みに失敗しました: {}", e).into()
-            },
-        )?;
+        let model_config = NnModelConfig::default();
+        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+        let model: NnModel<Autodiff<NdArray>> =
+            NnModel::new(&model_config, &device).load_file(model_path, &recorder, &device)?;
 
         let board_vector = board.to_vector(None);
         let prediction = model.predict_single(board_vector);
 
         let white_win_rate = prediction.clone().slice([0..1]).into_scalar();
         let black_win_rate = prediction.clone().slice([1..2]).into_scalar();
-        let total_games = prediction.slice([2..3]).into_scalar();
+        let draw_rate = prediction.slice([2..3]).into_scalar();
 
-        Ok((white_win_rate, black_win_rate, total_games))
+        Ok((white_win_rate, black_win_rate, draw_rate))
     }
 
     /// 特定のレコードの詳細情報を取得（デバッグ用）
@@ -775,6 +817,35 @@ impl Evaluator {
             batch_size,
             num_epochs,
             model_save_path: model_save_path.clone(),
+            use_lr_scheduling: true,
+            use_early_stopping: true,
+            early_stopping_patience: 10,
+        };
+
+        self.train_model(min_games, training_config, model_save_path)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "train_model_advanced")]
+    pub fn python_train_model_advanced(
+        &self,
+        min_games: i32,
+        learning_rate: f64,
+        batch_size: usize,
+        num_epochs: usize,
+        model_save_path: String,
+        use_lr_scheduling: bool,
+        use_early_stopping: bool,
+        early_stopping_patience: usize,
+    ) -> PyResult<()> {
+        let training_config = TrainingConfig {
+            learning_rate,
+            batch_size,
+            num_epochs,
+            model_save_path: model_save_path.clone(),
+            use_lr_scheduling,
+            use_early_stopping,
+            early_stopping_patience,
         };
 
         self.train_model(min_games, training_config, model_save_path)
