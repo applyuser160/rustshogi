@@ -121,32 +121,50 @@ impl Evaluator {
 
         println!("{}個のランダム盤面を生成中...", count);
 
-        for i in 0..count {
-            let mut game = Game::new();
-            game.input_board("startpos".to_string());
-            let random_board = game.generate_random_board();
-            let board_sfen = random_board.to_string();
+        match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
 
-            match &self.db_type {
-                DatabaseType::Sqlite(db_path) => {
-                    let conn = rusqlite::Connection::open(db_path)?;
+                for i in 0..count {
+                    let mut game = Game::new();
+                    game.input_board("startpos".to_string());
+                    let random_board = game.generate_random_board();
+                    let board_sfen = random_board.to_string();
+
                     conn.execute(
                         "INSERT INTO training_data (board) VALUES (?1)",
                         [&board_sfen],
                     )?;
-                }
-                DatabaseType::Postgres(connection_string) => {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let (client, connection) =
-                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
-                                .await?;
 
-                        tokio::spawn(async move {
-                            if let Err(e) = connection.await {
-                                eprintln!("PostgreSQL接続エラー: {}", e);
-                            }
-                        });
+                    saved_count += 1;
+
+                    if (i + 1) % 100 == 0 {
+                        let elapsed = start_time.elapsed();
+                        println!(
+                            "{}個の盤面を生成・保存しました (経過時間: {:.2}秒)",
+                            i + 1,
+                            elapsed.as_secs_f64()
+                        );
+                    }
+                }
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    for i in 0..count {
+                        let mut game = Game::new();
+                        game.input_board("startpos".to_string());
+                        let random_board = game.generate_random_board();
+                        let board_sfen = random_board.to_string();
 
                         client
                             .execute(
@@ -155,20 +173,20 @@ impl Evaluator {
                             )
                             .await?;
 
-                        Ok::<(), tokio_postgres::Error>(())
-                    })?;
-                }
-            }
+                        saved_count += 1;
 
-            saved_count += 1;
+                        if (i + 1) % 100 == 0 {
+                            let elapsed = start_time.elapsed();
+                            println!(
+                                "{}個の盤面を生成・保存しました (経過時間: {:.2}秒)",
+                                i + 1,
+                                elapsed.as_secs_f64()
+                            );
+                        }
+                    }
 
-            if (i + 1) % 100 == 0 {
-                let elapsed = start_time.elapsed();
-                println!(
-                    "{}個の盤面を生成・保存しました (経過時間: {:.2}秒)",
-                    i + 1,
-                    elapsed.as_secs_f64()
-                );
+                    Ok::<(), tokio_postgres::Error>(())
+                })?;
             }
         }
 

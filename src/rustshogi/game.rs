@@ -1,4 +1,3 @@
-use super::address::Address;
 use super::board::Board;
 use super::color::{convert_from_string, get_reverse_color, ColorType};
 use super::mctsresult::MctsResult;
@@ -49,31 +48,7 @@ impl Game {
     }
 
     pub fn input_board(&mut self, sfen: String) {
-        let startpos = String::from("startpos");
-        if startpos == sfen {
-            self.board.startpos();
-            return;
-        }
-
-        let parts: Vec<&str> = sfen.split('/').collect();
-        for (row, part) in parts.iter().enumerate().rev() {
-            let mut column = 0;
-            let chars = part.chars();
-            for ch in chars {
-                if ch.is_ascii_digit() {
-                    let empty_spaces = ch.to_digit(10).unwrap() as usize;
-                    column += empty_spaces;
-                } else {
-                    let piece = Piece::from_char(ch);
-                    let piece_type = piece.piece_type;
-                    let owner = piece.owner;
-                    let index =
-                        Address::from_numbers((1 + column) as u8, (9 - row) as u8).to_index();
-                    self.board.deploy(index, piece_type, owner);
-                    column += 1;
-                }
-            }
-        }
+        self.board = Board::from_sfen(sfen);
     }
 
     pub fn input_hand(&mut self, sfen: String) {

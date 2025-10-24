@@ -1,5 +1,6 @@
 use super::board::Board;
 use super::evaluator::{DatabaseType, Evaluator};
+use super::game::Game;
 use super::nn_model::TrainingConfig;
 use std::fs;
 
@@ -219,5 +220,191 @@ fn test_database_type_enum() {
     match postgres_type {
         DatabaseType::Postgres(conn_str) => assert_eq!(conn_str, "postgresql://localhost/db"),
         _ => panic!("PostgreSQLタイプが正しく設定されていません"),
+    }
+}
+
+#[test]
+fn test_generate_random_board_hand_consistency() {
+    let mut game = Game::new();
+    game.input_board("startpos".to_string());
+
+    // ランダム盤面を生成
+    let random_board = game.generate_random_board();
+
+    // 持ち駒の整合性を確認
+    let hand = &random_board.hand;
+
+    // 全ての駒種について持ち駒の数を確認
+    use super::color::ColorType;
+    use super::piece::PieceType;
+
+    let mut total_hand_pieces = 0;
+
+    for color in [ColorType::Black, ColorType::White] {
+        for piece_type in [
+            PieceType::King,
+            PieceType::Gold,
+            PieceType::Rook,
+            PieceType::Bichop,
+            PieceType::Silver,
+            PieceType::Knight,
+            PieceType::Lance,
+            PieceType::Pawn,
+        ] {
+            let count = hand.get_count(color, piece_type);
+            total_hand_pieces += count;
+
+            // 持ち駒の数が妥当な範囲内であることを確認（0以上、理論上の最大値以下）
+            assert!(
+                count <= 18,
+                "持ち駒の数が異常に多いです: {}の{}が{}個",
+                if color == ColorType::Black {
+                    "先手"
+                } else {
+                    "後手"
+                },
+                piece_type.get_name(),
+                count
+            );
+        }
+    }
+
+    // SFEN文字列の持ち駒部分の整合性を確認
+    let sfen = random_board.to_string();
+    let parts: Vec<&str> = sfen.split(' ').collect();
+    assert_eq!(
+        parts.len(),
+        2,
+        "SFEN文字列の形式が正しくありません: {}",
+        sfen
+    );
+
+    if total_hand_pieces == 0 {
+        // 持ち駒がない場合は'-'であることを確認
+        assert_eq!(
+            parts[1], "-",
+            "持ち駒がないのにSFEN文字列が'-'ではありません: {}",
+            parts[1]
+        );
+    } else {
+        // 持ち駒がある場合は空文字列でないことを確認
+        assert!(!parts[1].is_empty(), "持ち駒があるのにSFEN文字列が空です");
+        assert_ne!(parts[1], "-", "持ち駒があるのにSFEN文字列が'-'です");
+    }
+
+    println!("生成された盤面の持ち駒総数: {}", total_hand_pieces);
+    println!("SFEN: {}", sfen);
+}
+
+#[test]
+fn test_generate_random_board_promoted_pieces() {
+    let mut game = Game::new();
+    game.input_board("startpos".to_string());
+
+    // 成った駒が含まれる盤面を生成するために、複数回試行
+    let mut found_promoted_piece = false;
+    let mut test_count = 0;
+    const MAX_ATTEMPTS: usize = 50; // 最大50回試行
+
+    while !found_promoted_piece && test_count < MAX_ATTEMPTS {
+        let mut test_game = Game::new();
+        test_game.input_board("startpos".to_string());
+
+        // ランダム盤面を生成
+        let random_board = test_game.generate_random_board();
+        let sfen = random_board.to_string();
+
+        // 成った駒（+付きの駒）が含まれているかチェック
+        if sfen.contains("+") {
+            found_promoted_piece = true;
+
+            // 成った駒が正しく+付きで表示されていることを確認
+            println!("成った駒を含む盤面を発見: {}", sfen);
+
+            // SFEN文字列を解析して成った駒を確認
+            let board_part = sfen.split(' ').next().unwrap();
+            let mut promoted_count = 0;
+
+            for ch in board_part.chars() {
+                if ch == '+' {
+                    promoted_count += 1;
+                }
+            }
+
+            assert!(
+                promoted_count > 0,
+                "SFEN文字列に'+'が含まれていません: {}",
+                sfen
+            );
+
+            // 個別の駒の表示も確認
+            use super::address::Address;
+
+            // 盤面の各マスをチェックして成った駒を確認
+            for row in 1..=9 {
+                for col in 1..=9 {
+                    let index = Address::from_numbers(col, row).to_index();
+                    let piece = random_board.get_piece(index);
+
+                    if piece.piece_type as u8 > 8 {
+                        // 成った駒のIDは8より大きい
+                        let piece_str = piece.to_string();
+                        assert!(
+                            piece_str.starts_with("+"),
+                            "成った駒{}が'+'で始まっていません: {}",
+                            piece.piece_type.get_name(),
+                            piece_str
+                        );
+
+                        println!("成った駒発見: {} at ({}, {})", piece_str, col, row);
+                    }
+                }
+            }
+        }
+
+        test_count += 1;
+    }
+
+    if !found_promoted_piece {
+        println!(
+            "{}回の試行で成った駒を含む盤面が見つかりませんでした",
+            MAX_ATTEMPTS
+        );
+        // 成った駒が見つからない場合でも、テストは成功とする（ランダム性のため）
+        // ただし、手動で成った駒を配置してテストする
+        let mut manual_game = Game::new();
+        manual_game.input_board("startpos".to_string());
+
+        // 手動で成った駒を配置
+        use super::address::Address;
+        use super::color::ColorType;
+        use super::piece::PieceType;
+
+        manual_game.board.deploy(
+            Address::from_numbers(5, 5).to_index(),
+            PieceType::Dragon, // 成り飛車
+            ColorType::Black,
+        );
+
+        manual_game.board.deploy(
+            Address::from_numbers(4, 4).to_index(),
+            PieceType::Horse, // 成り角
+            ColorType::White,
+        );
+
+        let manual_sfen = manual_game.board.to_string();
+        println!("手動で成った駒を配置した盤面: {}", manual_sfen);
+
+        // 手動配置した成った駒が+付きで表示されることを確認
+        assert!(
+            manual_sfen.contains("+R"),
+            "成り飛車が'+R'で表示されていません: {}",
+            manual_sfen
+        );
+        assert!(
+            manual_sfen.contains("+b"),
+            "成り角が'+b'で表示されていません: {}",
+            manual_sfen
+        );
     }
 }
