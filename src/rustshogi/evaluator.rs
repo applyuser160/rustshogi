@@ -402,8 +402,6 @@ impl Evaluator {
                             eprintln!("警告: レコードID {} の更新に失敗しました（レコードが見つかりません）", id);
                             Ok(false)
                         } else {
-                            println!("レコードID {} を更新しました (白勝: +{}, 黒勝: +{}, 総ゲーム: +{})",
-                                    id, white_wins, black_wins, total_games);
                             Ok(true)
                         }
                     }).map_err(|e: tokio_postgres::Error| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
