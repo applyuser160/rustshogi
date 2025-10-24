@@ -12,13 +12,21 @@ use std::time::Instant;
 
 /// 学習データベースのレコード構造体
 #[derive(Debug, Serialize, Deserialize)]
+#[pyclass]
 pub struct TrainingRecord {
+    #[pyo3(get)]
     pub id: i64,
+    #[pyo3(get)]
     pub board: String, // SFEN形式の文字列
+    #[pyo3(get)]
     pub white_wins: i32,
+    #[pyo3(get)]
     pub black_wins: i32,
+    #[pyo3(get)]
     pub total_games: i32,
+    #[pyo3(get)]
     pub created_at: String,
+    #[pyo3(get)]
     pub updated_at: String,
 }
 
@@ -276,6 +284,19 @@ impl Evaluator {
             num_threads
         );
 
+        // 処理開始前のデータベース統計を表示
+        match self.get_database_stats() {
+            Ok((total_records, total_games, avg_games)) => {
+                println!(
+                    "処理開始前のデータベース統計: 総レコード数={}, 総ゲーム数={}, 平均ゲーム数={}",
+                    total_records, total_games, avg_games
+                );
+            }
+            Err(e) => {
+                eprintln!("データベース統計の取得に失敗: {}", e);
+            }
+        }
+
         // 進捗追跡用のカウンター
         let mut processed_count = 0;
         let total_records = records.len();
@@ -325,10 +346,10 @@ impl Evaluator {
         let mut updated_count = 0;
 
         for (id, white_wins, black_wins, total_games) in all_results {
-            match &self.db_type {
+            let update_result = match &self.db_type {
                 DatabaseType::Sqlite(db_path) => {
                     let conn = rusqlite::Connection::open(db_path)?;
-                    conn.execute(
+                    let rows_affected = conn.execute(
                         "UPDATE training_data
                          SET white_wins = white_wins + ?1,
                              black_wins = black_wins + ?2,
@@ -337,6 +358,20 @@ impl Evaluator {
                          WHERE id = ?4",
                         [white_wins, black_wins, total_games, id as i32],
                     )?;
+
+                    if rows_affected == 0 {
+                        eprintln!(
+                            "警告: レコードID {} の更新に失敗しました（レコードが見つかりません）",
+                            id
+                        );
+                        false
+                    } else {
+                        println!(
+                            "レコードID {} を更新しました (白勝: +{}, 黒勝: +{}, 総ゲーム: +{})",
+                            id, white_wins, black_wins, total_games
+                        );
+                        true
+                    }
                 }
                 DatabaseType::Postgres(connection_string) => {
                     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -351,7 +386,7 @@ impl Evaluator {
                             }
                         });
 
-                        client
+                        let rows_affected = client
                             .execute(
                                 "UPDATE training_data
                              SET white_wins = white_wins + $1,
@@ -363,17 +398,40 @@ impl Evaluator {
                             )
                             .await?;
 
-                        Ok::<(), tokio_postgres::Error>(())
-                    })?;
+                        if rows_affected == 0 {
+                            eprintln!("警告: レコードID {} の更新に失敗しました（レコードが見つかりません）", id);
+                            Ok(false)
+                        } else {
+                            println!("レコードID {} を更新しました (白勝: +{}, 黒勝: +{}, 総ゲーム: +{})",
+                                    id, white_wins, black_wins, total_games);
+                            Ok(true)
+                        }
+                    }).map_err(|e: tokio_postgres::Error| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
                 }
+            };
+
+            if update_result {
+                updated_count += 1;
             }
-            updated_count += 1;
         }
 
         println!(
             "データベースへの書き込みが完了しました。更新されたレコード数: {}",
             updated_count
         );
+
+        // データベースの統計情報を表示
+        match self.get_database_stats() {
+            Ok((total_records, total_games, avg_games)) => {
+                println!(
+                    "データベース統計: 総レコード数={}, 総ゲーム数={}, 平均ゲーム数={}",
+                    total_records, total_games, avg_games
+                );
+            }
+            Err(e) => {
+                eprintln!("データベース統計の取得に失敗: {}", e);
+            }
+        }
 
         let total_elapsed = start_time.elapsed();
         println!(
@@ -543,6 +601,79 @@ impl Evaluator {
         Ok((white_win_rate, black_win_rate, total_games))
     }
 
+    /// 特定のレコードの詳細情報を取得（デバッグ用）
+    ///
+    /// # Arguments
+    /// * `record_id` - 取得するレコードのID
+    ///
+    /// # Returns
+    /// * `Result<Option<TrainingRecord>, Box<dyn std::error::Error + Send + Sync>>` - レコード情報
+    pub fn get_record_details(
+        &self,
+        record_id: i64,
+    ) -> Result<Option<TrainingRecord>, Box<dyn std::error::Error + Send + Sync>> {
+        match &self.db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
+                let mut stmt = conn.prepare(
+                    "SELECT id, board, white_wins, black_wins, total_games, created_at, updated_at
+                     FROM training_data WHERE id = ?1",
+                )?;
+
+                let result = stmt.query_row([record_id], |row| {
+                    Ok(TrainingRecord {
+                        id: row.get(0)?,
+                        board: row.get(1)?,
+                        white_wins: row.get(2)?,
+                        black_wins: row.get(3)?,
+                        total_games: row.get(4)?,
+                        created_at: row.get(5)?,
+                        updated_at: row.get(6)?,
+                    })
+                });
+
+                match result {
+                    Ok(record) => Ok(Some(record)),
+                    Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                    Err(e) => Err(e.into()),
+                }
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) = tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    let rows = client.query(
+                        "SELECT id, board, white_wins, black_wins, total_games, created_at, updated_at
+                         FROM training_data WHERE id = $1",
+                        &[&record_id],
+                    ).await?;
+
+                    if rows.is_empty() {
+                        Ok(None)
+                    } else {
+                        let row = &rows[0];
+                        Ok(Some(TrainingRecord {
+                            id: row.get(0),
+                            board: row.get(1),
+                            white_wins: row.get(2),
+                            black_wins: row.get(3),
+                            total_games: row.get(4),
+                            created_at: row.get(5),
+                            updated_at: row.get(6),
+                        }))
+                    }
+                }).map_err(|e: tokio_postgres::Error| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            }
+        }
+    }
+
     /// データベースの統計情報を取得
     ///
     /// # Returns
@@ -665,6 +796,12 @@ impl Evaluator {
     #[pyo3(name = "get_database_stats")]
     pub fn python_get_database_stats(&self) -> PyResult<(i32, i32, i32)> {
         self.get_database_stats()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "get_record_details")]
+    pub fn python_get_record_details(&self, record_id: i64) -> PyResult<Option<TrainingRecord>> {
+        self.get_record_details(record_id)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }
