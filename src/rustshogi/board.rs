@@ -371,13 +371,27 @@ impl Board {
         let parts: Vec<&str> = sfen.split('/').collect();
         for (row, part) in parts.iter().enumerate().rev() {
             let mut column = 0;
-            let chars = part.chars();
-            for ch in chars {
+            let mut chars = part.chars().peekable();
+
+            while let Some(ch) = chars.next() {
                 if ch.is_ascii_digit() {
                     let empty_spaces = ch.to_digit(10).unwrap() as usize;
                     column += empty_spaces;
                 } else {
-                    let piece = Piece::from_char(ch);
+                    let piece_str = if ch == '+' {
+                        // 成ったコマの場合、+と次の文字を組み合わせる
+                        if let Some(next_ch) = chars.next() {
+                            format!("+{}", next_ch)
+                        } else {
+                            // +の後に文字がない場合はエラーとして処理
+                            continue;
+                        }
+                    } else {
+                        // 通常のコマの場合
+                        ch.to_string()
+                    };
+
+                    let piece = Piece::from_string(&piece_str);
                     let piece_type = piece.piece_type;
                     let owner = piece.owner;
                     let index =
@@ -799,7 +813,27 @@ impl Board {
         if is_drop {
             self.move_from_hand(to_index, piece.piece_type, piece.owner);
         } else {
-            self.move_standard(from_index, to_index);
+            // 成る手の場合は駒を成り駒に変更
+            if moves.get_is_promote() {
+                let piece_type = self.get_piece_type_from_index(from_index);
+                let color_type = self.get_color_type_from_index(from_index);
+                self.drop(from_index);
+
+                // 駒を成り駒に変更
+                let promoted_piece_type = match piece_type {
+                    PieceType::Rook => PieceType::Dragon,
+                    PieceType::Bichop => PieceType::Horse,
+                    PieceType::Silver => PieceType::ProSilver,
+                    PieceType::Knight => PieceType::ProKnight,
+                    PieceType::Lance => PieceType::ProLance,
+                    PieceType::Pawn => PieceType::ProPawn,
+                    _ => piece_type, // 成れない駒の場合はそのまま
+                };
+
+                self.deploy(to_index, promoted_piece_type, color_type);
+            } else {
+                self.move_standard(from_index, to_index);
+            }
         }
     }
 
