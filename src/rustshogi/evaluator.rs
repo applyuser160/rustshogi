@@ -448,6 +448,7 @@ impl Evaluator {
     /// * `min_games` - 最小ゲーム数（この数以上のゲームが実行されたレコードのみ使用）
     /// * `training_config` - 学習設定
     /// * `model_save_path` - モデル保存パス
+    /// * `max_samples` - 最大サンプル数（Noneの場合は全データを使用）
     ///
     /// # Returns
     /// * `Result<(), Box<dyn std::error::Error + Send + Sync>>` - 学習結果
@@ -456,6 +457,7 @@ impl Evaluator {
         min_games: i32,
         training_config: TrainingConfig,
         model_save_path: String,
+        max_samples: Option<usize>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let start_time = Instant::now();
         println!("モデルの訓練を開始します...");
@@ -518,6 +520,51 @@ impl Evaluator {
                     Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(records)
                 })?
             }
+        };
+
+        // サンプリング処理（メモリ効率化と処理時間短縮）
+        let records = if let Some(max_samples) = max_samples {
+            if records.len() > max_samples {
+                println!(
+                    "データをサンプリング中... ({}個から{}個に削減)",
+                    records.len(),
+                    max_samples
+                );
+
+                // ランダムサンプリング（重み付き：total_gamesが多いほど選ばれやすい）
+                use rand::seq::SliceRandom;
+                use rand::thread_rng;
+
+                let mut rng = thread_rng();
+                let mut sampled_records = Vec::with_capacity(max_samples);
+
+                // 重み付きサンプリングのためのインデックスと重みを作成
+                let mut weighted_indices: Vec<(usize, i32)> = records
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (_, _, _, total_games))| (i, *total_games))
+                    .collect();
+
+                // 重みに基づいてサンプリング
+                for _ in 0..max_samples {
+                    if let Ok(&(idx, _)) = weighted_indices.choose_weighted(&mut rng, |item| item.1)
+                    {
+                        sampled_records.push(records[idx].clone());
+                        // 選ばれたインデックスを削除（重複を避ける）
+                        weighted_indices.retain(|(i, _)| *i != idx);
+                    }
+                }
+
+                println!(
+                    "サンプリング完了: {}個のレコードを選択",
+                    sampled_records.len()
+                );
+                sampled_records
+            } else {
+                records
+            }
+        } else {
+            records
         };
 
         let mut training_data = TrainingData::new();
@@ -822,7 +869,31 @@ impl Evaluator {
             early_stopping_patience: 10,
         };
 
-        self.train_model(min_games, training_config, model_save_path)
+        self.train_model(min_games, training_config, model_save_path, None)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "train_model_with_sampling")]
+    pub fn python_train_model_with_sampling(
+        &self,
+        min_games: i32,
+        learning_rate: f64,
+        batch_size: usize,
+        num_epochs: usize,
+        model_save_path: String,
+        max_samples: Option<usize>,
+    ) -> PyResult<()> {
+        let training_config = TrainingConfig {
+            learning_rate,
+            batch_size,
+            num_epochs,
+            model_save_path: model_save_path.clone(),
+            use_lr_scheduling: true,
+            use_early_stopping: true,
+            early_stopping_patience: 10,
+        };
+
+        self.train_model(min_games, training_config, model_save_path, max_samples)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
@@ -848,7 +919,7 @@ impl Evaluator {
             early_stopping_patience,
         };
 
-        self.train_model(min_games, training_config, model_save_path)
+        self.train_model(min_games, training_config, model_save_path, None)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 

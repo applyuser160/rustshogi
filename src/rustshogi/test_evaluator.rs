@@ -115,7 +115,7 @@ fn test_train_model_with_no_data() {
         early_stopping_patience: 10,
     };
 
-    let result = evaluator.train_model(1, training_config, "test_model.bin".to_string());
+    let result = evaluator.train_model(1, training_config, "test_model.bin".to_string(), None);
 
     // テスト後にファイルを削除
     let _ = fs::remove_file(test_db);
@@ -146,11 +146,90 @@ fn test_train_model_with_data() {
         early_stopping_patience: 10,
     };
 
-    let result = evaluator.train_model(1, training_config, "test_model_with_data.bin".to_string());
+    let result = evaluator.train_model(
+        1,
+        training_config,
+        "test_model_with_data.bin".to_string(),
+        None,
+    );
 
     // テスト後にファイルを削除
     let _ = fs::remove_file(test_db);
     let _ = fs::remove_file("test_model_with_data.bin");
+
+    // 空のデータベースなので学習データが見つからないエラーが期待される
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("学習データが見つかりません"));
+}
+
+#[test]
+fn test_train_model_with_sampling() {
+    let test_db = "test_train_sampling.db";
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
+
+    evaluator.init_database().unwrap();
+
+    let training_config = TrainingConfig {
+        learning_rate: 0.001,
+        batch_size: 1,
+        num_epochs: 1,
+        model_save_path: "test_model_sampling.bin".to_string(),
+        use_lr_scheduling: true,
+        use_early_stopping: true,
+        early_stopping_patience: 10,
+    };
+
+    // max_samplesを指定してテスト
+    let result = evaluator.train_model(
+        1,
+        training_config,
+        "test_model_sampling.bin".to_string(),
+        Some(100),
+    );
+
+    // テスト後にファイルを削除
+    let _ = fs::remove_file(test_db);
+    let _ = fs::remove_file("test_model_sampling.bin");
+
+    // 空のデータベースなので学習データが見つからないエラーが期待される
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("学習データが見つかりません"));
+}
+
+#[test]
+fn test_train_model_with_sampling_none() {
+    let test_db = "test_train_sampling_none.db";
+    let evaluator = Evaluator::new(DatabaseType::Sqlite(test_db.to_string()));
+
+    evaluator.init_database().unwrap();
+
+    let training_config = TrainingConfig {
+        learning_rate: 0.001,
+        batch_size: 1,
+        num_epochs: 1,
+        model_save_path: "test_model_sampling_none.bin".to_string(),
+        use_lr_scheduling: true,
+        use_early_stopping: true,
+        early_stopping_patience: 10,
+    };
+
+    // max_samplesをNoneでテスト（全データ使用）
+    let result = evaluator.train_model(
+        1,
+        training_config,
+        "test_model_sampling_none.bin".to_string(),
+        None,
+    );
+
+    // テスト後にファイルを削除
+    let _ = fs::remove_file(test_db);
+    let _ = fs::remove_file("test_model_sampling_none.bin");
 
     // 空のデータベースなので学習データが見つからないエラーが期待される
     assert!(result.is_err());

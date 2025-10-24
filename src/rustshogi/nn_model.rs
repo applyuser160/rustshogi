@@ -462,39 +462,6 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
             }
         }
 
-        // パフォーマンス最適化: 全データを事前にテンソルに変換
-        println!("データの前処理を開始します（パフォーマンス最適化）...");
-        let preprocessing_start = Instant::now();
-
-        // メモリ効率化: 事前に容量を確保して一度にデータをコピー
-        let mut all_inputs = Vec::with_capacity(total_samples * input_dim);
-        let mut all_targets = Vec::with_capacity(total_samples * output_dim);
-
-        // パフォーマンス最適化: バッチ単位でデータをコピー
-        for i in 0..total_samples {
-            all_inputs.extend_from_slice(&training_data.inputs[i]);
-            all_targets.extend_from_slice(&training_data.targets[i]);
-        }
-
-        // パフォーマンス最適化: 一度にテンソルを作成
-        let _input_tensor = Tensor::<B, 1>::from_floats(all_inputs.as_slice(), device)
-            .reshape([total_samples, input_dim]);
-        let _target_tensor = Tensor::<B, 1>::from_floats(all_targets.as_slice(), device)
-            .reshape([total_samples, output_dim]);
-
-        // メモリ解放: 元のデータをクリア
-        drop(all_inputs);
-        drop(all_targets);
-
-        let preprocessing_elapsed = preprocessing_start.elapsed();
-        println!(
-            "データの前処理が完了しました (処理時間: {:.2}秒)",
-            preprocessing_elapsed.as_secs_f64()
-        );
-        println!(
-            "総サンプル数: {}, 入力次元: {}, 出力次元: {}",
-            total_samples, input_dim, output_dim
-        );
         println!(
             "学習設定: 学習率={}, エポック数={}, 学習率スケジューリング={}, 早期停止={}",
             training_config.learning_rate,
@@ -513,7 +480,7 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
 
         // エポックごとの学習
         for epoch in 0..training_config.num_epochs {
-            let _epoch_start_time = Instant::now();
+            let epoch_start_time = Instant::now();
             let mut total_loss = 0.0;
             let mut batch_count = 0;
 
@@ -524,63 +491,41 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
                 training_config.learning_rate
             };
 
-            // パフォーマンス最適化: エポックごとにテンソルを再作成（所有権問題の回避）
-            let mut epoch_inputs = Vec::with_capacity(total_samples * input_dim);
-            let mut epoch_targets = Vec::with_capacity(total_samples * output_dim);
-
-            for i in 0..total_samples {
-                epoch_inputs.extend_from_slice(&training_data.inputs[i]);
-                epoch_targets.extend_from_slice(&training_data.targets[i]);
-            }
-
-            let epoch_input_tensor = Tensor::<B, 1>::from_floats(epoch_inputs.as_slice(), device)
-                .reshape([total_samples, input_dim]);
-            let epoch_target_tensor = Tensor::<B, 1>::from_floats(epoch_targets.as_slice(), device)
-                .reshape([total_samples, output_dim]);
-
             // バッチごとの学習
             let total_batches = total_samples.div_ceil(batch_size);
-
-            // 時間予測の計算
-            let epoch_start_time = std::time::SystemTime::now();
-            let estimated_epoch_duration = if epoch > 0 {
-                // 前のエポックの実績から予測
-
-                epoch_start_time
-                    .duration_since(epoch_start_time)
-                    .unwrap_or_default()
-            } else {
-                // 初回は概算（バッチ数 × 0.005秒）
-                std::time::Duration::from_millis((total_batches * 5) as u64)
-            };
-
-            let estimated_end_time = epoch_start_time + estimated_epoch_duration;
-            let end_time_str = chrono::DateTime::<chrono::Local>::from(estimated_end_time)
-                .format("%H:%M:%S")
-                .to_string();
 
             println!(
                 "エポック {} 開始: {} バッチを処理します (バッチサイズ: {})",
                 epoch, total_batches, batch_size
             );
-            println!(
-                "⏰ 予想終了時間: {} (推定時間: {:.1}分)",
-                end_time_str,
-                estimated_epoch_duration.as_secs_f64() / 60.0
-            );
 
             for batch_start in (0..total_samples).step_by(batch_size) {
                 let batch_end = (batch_start + batch_size).min(total_samples);
+                let current_batch_size = batch_end - batch_start;
 
-                // パフォーマンス最適化: スライス操作でバッチデータを取得
-                let batch_input = epoch_input_tensor.clone().slice([batch_start..batch_end]);
-                let batch_target = epoch_target_tensor.clone().slice([batch_start..batch_end]);
+                // メモリ効率化: バッチサイズ分だけメモリを展開
+                let mut batch_inputs = Vec::with_capacity(current_batch_size * input_dim);
+                let mut batch_targets = Vec::with_capacity(current_batch_size * output_dim);
+
+                // 必要な分だけデータをコピー
+                for i in batch_start..batch_end {
+                    batch_inputs.extend_from_slice(&training_data.inputs[i]);
+                    batch_targets.extend_from_slice(&training_data.targets[i]);
+                }
+
+                // バッチサイズ分のテンソルを作成
+                let batch_input_tensor =
+                    Tensor::<B, 1>::from_floats(batch_inputs.as_slice(), device)
+                        .reshape([current_batch_size, input_dim]);
+                let batch_target_tensor =
+                    Tensor::<B, 1>::from_floats(batch_targets.as_slice(), device)
+                        .reshape([current_batch_size, output_dim]);
 
                 // フォワードパス
-                let predictions = self.forward(batch_input);
+                let predictions = self.forward(batch_input_tensor);
 
                 // 損失計算（平均二乗誤差）
-                let loss = mse_loss_autodiff(&predictions, &batch_target);
+                let loss = mse_loss_autodiff(&predictions, &batch_target_tensor);
                 let loss_value: f32 = loss.clone().into_scalar();
                 total_loss += loss_value;
 
@@ -592,9 +537,13 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
                 batch_count += 1;
                 total_batch_count += 1;
 
-                // パフォーマンス最適化: 進捗表示（10バッチごと）
+                // バッチ処理後、メモリを明示的に解放
+                drop(batch_inputs);
+                drop(batch_targets);
+
+                // 進捗表示（10バッチごと）
                 if batch_count % 10 == 0 {
-                    let elapsed = epoch_start_time.elapsed().unwrap_or_default();
+                    let elapsed = epoch_start_time.elapsed();
                     let samples_per_sec = (batch_count * batch_size) as f64 / elapsed.as_secs_f64();
 
                     // 残り時間の計算
@@ -624,7 +573,7 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
             }
 
             let avg_loss = total_loss / batch_count as f32;
-            let epoch_elapsed = epoch_start_time.elapsed().unwrap_or_default();
+            let epoch_elapsed = epoch_start_time.elapsed();
             let total_elapsed = training_start_time.elapsed();
 
             // パフォーマンス最適化: エポック統計の表示
