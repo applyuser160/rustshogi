@@ -49,12 +49,18 @@ pub struct Evaluator {
 impl Evaluator {
     /// 新しい評価関数システムを作成
     pub fn new(db_type: Option<DatabaseType>, model_path: Option<String>) -> Self {
-        Self { db_type, model_path }
+        Self {
+            db_type,
+            model_path,
+        }
     }
 
     /// データベーステーブルを初期化
     pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let db_type = self.db_type.as_ref().ok_or("データベースタイプが設定されていません")?;
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
@@ -128,7 +134,10 @@ impl Evaluator {
         &self,
         count: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
-        let db_type = self.db_type.as_ref().ok_or("データベースタイプが設定されていません")?;
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         let mut saved_count = 0;
         let start_time = Instant::now();
 
@@ -228,7 +237,10 @@ impl Evaluator {
         max_records: Option<usize>,
         num_threads: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
-        let db_type = self.db_type.as_ref().ok_or("データベースタイプが設定されていません")?;
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         let start_time = Instant::now();
         let records = match db_type {
             DatabaseType::Sqlite(db_path) => {
@@ -463,7 +475,10 @@ impl Evaluator {
         model_save_path: String,
         max_samples: Option<usize>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let db_type = self.db_type.as_ref().ok_or("データベースタイプが設定されていません")?;
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         let start_time = Instant::now();
         println!("モデルの訓練を開始します...");
         let records = match db_type {
@@ -680,7 +695,11 @@ impl Evaluator {
         // model_path引数が指定されていればそれを使用、そうでなければ構造体のフィールドを使用
         let path = match model_path {
             Some(p) => p,
-            None => self.model_path.as_ref().ok_or("モデルパスが設定されていません")?.as_str(),
+            None => self
+                .model_path
+                .as_ref()
+                .ok_or("モデルパスが設定されていません")?
+                .as_str(),
         };
         let device = NdArrayDevice::default();
         let model_config = NnModelConfig::default();
@@ -709,7 +728,10 @@ impl Evaluator {
         &self,
         record_id: i64,
     ) -> Result<Option<TrainingRecord>, Box<dyn std::error::Error + Send + Sync>> {
-        let db_type = self.db_type.as_ref().ok_or("データベースタイプが設定されていません")?;
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
@@ -779,7 +801,10 @@ impl Evaluator {
     pub fn get_database_stats(
         &self,
     ) -> Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>> {
-        let db_type = self.db_type.as_ref().ok_or("データベースタイプが設定されていません")?;
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
