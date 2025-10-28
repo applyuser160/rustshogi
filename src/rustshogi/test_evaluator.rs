@@ -1,12 +1,12 @@
 use super::board::Board;
-use super::evaluator::{DatabaseType, Evaluator};
+use super::evaluator::neural::{DatabaseType, NeuralEvaluator, TrainingRecord};
 use super::game::Game;
 use super::nn_model::TrainingConfig;
 use std::fs;
 
 #[test]
 fn test_evaluator_creation() {
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite("test.db".to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite("test.db".to_string())), None);
     // db_pathはプライベートなので、データベース操作でテスト
     assert!(evaluator.init_database().is_ok());
 
@@ -17,7 +17,7 @@ fn test_evaluator_creation() {
 #[test]
 fn test_database_initialization() {
     let test_db = "test_init.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     // テスト後にファイルを削除
     let _ = fs::remove_file(test_db);
@@ -28,7 +28,7 @@ fn test_database_initialization() {
 #[test]
 fn test_random_board_generation() {
     let test_db = "test_generation.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -45,7 +45,7 @@ fn test_random_board_generation() {
 #[test]
 fn test_database_stats() {
     let test_db = "test_stats.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -62,7 +62,7 @@ fn test_database_stats() {
 #[test]
 fn test_update_records_with_random_games() {
     let test_db = "test_update.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -80,7 +80,7 @@ fn test_update_records_with_random_games() {
 #[test]
 fn test_evaluate_position_with_nonexistent_model() {
     let test_db = "test_eval.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     let board = Board::new();
     let result = evaluator.evaluate_position(&board, Some("nonexistent_model.bin"));
@@ -101,7 +101,7 @@ fn test_evaluate_position_with_nonexistent_model() {
 #[test]
 fn test_train_model_with_no_data() {
     let test_db = "test_train_empty.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -131,7 +131,7 @@ fn test_train_model_with_no_data() {
 #[test]
 fn test_train_model_with_data() {
     let test_db = "test_train_with_data.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -168,7 +168,7 @@ fn test_train_model_with_data() {
 #[test]
 fn test_train_model_with_sampling() {
     let test_db = "test_train_sampling.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -205,7 +205,7 @@ fn test_train_model_with_sampling() {
 #[test]
 fn test_train_model_with_sampling_none() {
     let test_db = "test_train_sampling_none.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -242,7 +242,7 @@ fn test_train_model_with_sampling_none() {
 #[test]
 fn test_get_database_stats_with_games() {
     let test_db = "test_stats_with_games.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     evaluator.init_database().unwrap();
 
@@ -260,7 +260,7 @@ fn test_get_database_stats_with_games() {
 #[test]
 fn test_multiple_operations_sequence() {
     let test_db = "test_sequence.db";
-    let evaluator = Evaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
+    let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
     // データベース初期化
     assert!(evaluator.init_database().is_ok());
@@ -287,7 +287,7 @@ fn test_multiple_operations_sequence() {
 #[test]
 fn test_postgres_evaluator_creation() {
     // PostgreSQLのテスト（実際の接続は行わない）
-    let _evaluator = Evaluator::new(
+    let _evaluator = NeuralEvaluator::new(
         Some(DatabaseType::Postgres(
             "postgresql://user:password@localhost/dbname".to_string(),
         )),

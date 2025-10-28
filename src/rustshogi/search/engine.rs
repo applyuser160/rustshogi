@@ -1,8 +1,10 @@
-use super::board::Board;
-use super::color::ColorType;
-use super::evaluator::EvaluatorTrait;
-use super::moves::Move;
-use super::search_strategy::{EvaluationResult, SearchStrategy};
+use super::super::board::Board;
+use super::super::color::ColorType;
+use super::super::evaluator::Evaluator;
+use super::super::moves::Move;
+use super::super::search_strategy::{EvaluationResult, SearchStrategy};
+use super::alphabeta::AlphaBetaSearch;
+use super::minmax::MinMaxSearch;
 use pyo3::prelude::*;
 
 /// 探索エンジン
@@ -10,13 +12,13 @@ use pyo3::prelude::*;
 #[pyclass]
 pub struct SearchEngine {
     strategy: Box<dyn SearchStrategy + Send + Sync>,
-    evaluator: Option<Box<dyn EvaluatorTrait + Send + Sync>>,
+    evaluator: Option<Box<dyn Evaluator + Send + Sync>>,
 }
 
 impl SearchEngine {
     pub fn new(
         strategy: Box<dyn SearchStrategy + Send + Sync>,
-        evaluator: Option<Box<dyn EvaluatorTrait + Send + Sync>>,
+        evaluator: Option<Box<dyn Evaluator + Send + Sync>>,
     ) -> Self {
         Self {
             strategy,
@@ -32,7 +34,7 @@ impl SearchEngine {
             depth,
             self.evaluator
                 .as_ref()
-                .map(|e| e.as_ref() as &dyn EvaluatorTrait),
+                .map(|e| e.as_ref() as &dyn Evaluator),
         )
     }
 }
@@ -42,15 +44,15 @@ impl SearchEngine {
     #[new]
     #[pyo3(signature = (algorithm="minmax".to_string(), max_nodes=1000000))]
     pub fn new_for_python(algorithm: String, max_nodes: u64) -> Self {
-        use super::search_strategy::{AlphaBetaSearch, MinMaxSearch};
         let strategy: Box<dyn SearchStrategy + Send + Sync> =
             match algorithm.to_lowercase().as_str() {
                 "alphabeta" => Box::new(AlphaBetaSearch::new(max_nodes)),
                 _ => Box::new(MinMaxSearch::new(max_nodes)),
             };
 
-        let evaluator: Option<Box<dyn EvaluatorTrait + Send + Sync>> =
-            Some(Box::new(super::evaluator::SimpleEvaluator::new()));
+        let evaluator: Option<Box<dyn Evaluator + Send + Sync>> = Some(Box::new(
+            super::super::evaluator::simple::SimpleEvaluator::new(),
+        ));
 
         Self::new(strategy, evaluator)
     }

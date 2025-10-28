@@ -1,7 +1,9 @@
-use super::board::Board;
-use super::color::ColorType;
-use super::game::Game;
-use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+use super::super::board::Board;
+use super::super::color::ColorType;
+use super::super::game::Game;
+use super::super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+use super::simple::SimpleEvaluator;
+use super::trait_::Evaluator;
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use burn::module::Module;
@@ -12,107 +14,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Instant;
 
-/// 評価関数のトレイト
-/// 各評価関数はこのトレイトを実装することで、探索エンジンで使用可能
-pub trait EvaluatorTrait: Send + Sync {
-    /// 盤面を評価する
-    ///
-    /// # Arguments
-    /// * `board` - 評価する盤面
-    /// * `color` - 評価するプレイヤーの色
-    ///
-    /// # Returns
-    /// 評価値（colorの視点での評価、大きい方が有利）
-    fn evaluate(&self, board: &Board, color: ColorType) -> f32;
-}
-
-/// 簡易評価関数（駒の価値のみを使用）
-#[derive(Debug, Clone)]
-pub struct SimpleEvaluator {
-    pub piece_values: std::collections::HashMap<super::piece::PieceType, f32>,
-}
-
-impl Default for SimpleEvaluator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SimpleEvaluator {
-    pub fn new() -> Self {
-        let mut piece_values = std::collections::HashMap::new();
-        piece_values.insert(super::piece::PieceType::King, 10000.0);
-        piece_values.insert(super::piece::PieceType::Dragon, 12.0);
-        piece_values.insert(super::piece::PieceType::Horse, 11.0);
-        piece_values.insert(super::piece::PieceType::Rook, 10.0);
-        piece_values.insert(super::piece::PieceType::Bichop, 9.0);
-        piece_values.insert(super::piece::PieceType::Gold, 6.0);
-        piece_values.insert(super::piece::PieceType::Silver, 5.0);
-        piece_values.insert(super::piece::PieceType::Knight, 4.0);
-        piece_values.insert(super::piece::PieceType::Lance, 3.0);
-        piece_values.insert(super::piece::PieceType::Pawn, 1.0);
-        piece_values.insert(super::piece::PieceType::ProSilver, 6.0);
-        piece_values.insert(super::piece::PieceType::ProKnight, 5.0);
-        piece_values.insert(super::piece::PieceType::ProLance, 4.0);
-        piece_values.insert(super::piece::PieceType::ProPawn, 3.0);
-
-        Self { piece_values }
-    }
-}
-
-impl EvaluatorTrait for SimpleEvaluator {
-    fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
-        let mut score = 0.0;
-
-        // 盤上の駒を評価
-        for row in 1..=9 {
-            for col in 1..=9 {
-                let address = super::address::Address::from_numbers(col, row);
-                let index = address.to_index();
-                let piece = board.get_piece(index);
-
-                if piece.piece_type != super::piece::PieceType::None {
-                    if let Some(&value) = self.piece_values.get(&piece.piece_type) {
-                        if piece.owner == color {
-                            score += value;
-                        } else {
-                            score -= value;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 持ち駒を評価
-        for color_type in [ColorType::Black, ColorType::White] {
-            for piece_type in [
-                super::piece::PieceType::Rook,
-                super::piece::PieceType::Bichop,
-                super::piece::PieceType::Gold,
-                super::piece::PieceType::Silver,
-                super::piece::PieceType::Knight,
-                super::piece::PieceType::Lance,
-                super::piece::PieceType::Pawn,
-            ] {
-                let count = board.hand.get_count(color_type, piece_type);
-                if count > 0 {
-                    if let Some(&value) = self.piece_values.get(&piece_type) {
-                        if color_type == color {
-                            score += value * count as f32;
-                        } else {
-                            score -= value * count as f32;
-                        }
-                    }
-                }
-            }
-        }
-
-        score
-    }
-}
-
-/// ニューラルネットワーク評価関数
-/// ニューラルネットワークモデルを使用して盤面を評価
+/// ニューラルネットワーク評価関数（簡易版）
+/// モデルを使用して評価を実行
 pub struct NeuralNetworkEvaluator {
     model_path: Option<String>,
 }
@@ -128,9 +31,6 @@ impl NeuralNetworkEvaluator {
                 return Err(format!("モデルファイルが見つかりません: {}", path));
             }
 
-            // モデルを使用して評価
-            // ここでは簡略化のため、SimpleEvaluatorをフォールバックとして使用
-            // 実際のニューラルネットワーク評価は Evaluator::evaluate_position を使用
             let simple_eval = SimpleEvaluator::new();
             Ok(simple_eval.evaluate(board, color))
         } else {
@@ -139,12 +39,11 @@ impl NeuralNetworkEvaluator {
     }
 }
 
-impl EvaluatorTrait for NeuralNetworkEvaluator {
+impl Evaluator for NeuralNetworkEvaluator {
     fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
         match self.evaluate_with_model(board, color) {
             Ok(score) => score,
             Err(_) => {
-                // フォールバック: SimpleEvaluatorを使用
                 let simple_eval = SimpleEvaluator::new();
                 simple_eval.evaluate(board, color)
             }
@@ -179,14 +78,14 @@ pub enum DatabaseType {
     Postgres(String), // PostgreSQL接続文字列
 }
 
-/// 評価関数システム
+/// ニューラルネットワーク評価関数システム
 #[pyclass]
-pub struct Evaluator {
+pub struct NeuralEvaluator {
     db_type: Option<DatabaseType>,
     model_path: Option<String>,
 }
 
-impl Evaluator {
+impl NeuralEvaluator {
     /// 新しい評価関数システムを作成
     pub fn new(db_type: Option<DatabaseType>, model_path: Option<String>) -> Self {
         Self {
@@ -264,12 +163,6 @@ impl Evaluator {
     }
 
     /// ランダム盤面を生成してRDBに保存
-    ///
-    /// # Arguments
-    /// * `count` - 生成する盤面の数
-    ///
-    /// # Returns
-    /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 保存されたレコード数
     pub fn generate_and_save_random_boards(
         &self,
         count: usize,
@@ -362,15 +255,6 @@ impl Evaluator {
     }
 
     /// 保存されたレコードを読み取り、ランダム対局を実行して勝利数を更新
-    ///
-    /// # Arguments
-    /// * `trials_per_record` - 各レコードに対する試行回数
-    /// * `max_records` - 処理する最大レコード数（Noneの場合は全て）
-    /// * `num_threads` - スレッド数
-    /// * `num_processes` - プロセス数
-    ///
-    /// # Returns
-    /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 更新されたレコード数
     pub fn update_records_with_random_games(
         &self,
         trials_per_record: usize,
@@ -442,7 +326,6 @@ impl Evaluator {
             num_threads
         );
 
-        // 処理開始前のデータベース統計を表示
         match self.get_database_stats() {
             Ok((total_records, total_games, avg_games)) => {
                 println!(
@@ -455,14 +338,11 @@ impl Evaluator {
             }
         }
 
-        // 進捗追跡用のカウンター
         let mut processed_count = 0;
         let total_records = records.len();
         let mut all_results = Vec::new();
 
-        // 各レコードを順次処理（random_move_parallel内で並列化）
         for (id, board_sfen) in records {
-            // SFEN形式からBoardを復元
             let board = Board::from_sfen(board_sfen);
             let color = if rand::random::<bool>() {
                 ColorType::White
@@ -471,7 +351,6 @@ impl Evaluator {
             };
             let game = Game::from(board.clone(), 1, color, ColorType::None);
 
-            // random_move_parallel内で並列処理を実行
             let mcts_results = game.random_move_parallel(trials_per_record, num_threads);
             let white_wins = mcts_results.iter().map(|r| r.white_wins as i32).sum();
             let black_wins = mcts_results.iter().map(|r| r.black_wins as i32).sum();
@@ -480,7 +359,6 @@ impl Evaluator {
             all_results.push((id, white_wins, black_wins, total_games));
             processed_count += 1;
 
-            // 10個ごと、または最後のレコードで進捗を表示
             if processed_count % 10 == 0 || processed_count == total_records {
                 let elapsed = start_time.elapsed();
                 let progress_percent = (processed_count as f64 / total_records as f64) * 100.0;
@@ -499,7 +377,6 @@ impl Evaluator {
             all_results.len()
         );
 
-        // データベース書き込み（順次処理）
         println!("データベースへの書き込みを開始します...");
         let mut updated_count = 0;
 
@@ -576,7 +453,6 @@ impl Evaluator {
             updated_count
         );
 
-        // データベースの統計情報を表示
         match self.get_database_stats() {
             Ok((total_records, total_games, avg_games)) => {
                 println!(
@@ -599,15 +475,6 @@ impl Evaluator {
     }
 
     /// 学習データを取得してモデルを訓練
-    ///
-    /// # Arguments
-    /// * `min_games` - 最小ゲーム数（この数以上のゲームが実行されたレコードのみ使用）
-    /// * `training_config` - 学習設定
-    /// * `model_save_path` - モデル保存パス
-    /// * `max_samples` - 最大サンプル数（Noneの場合は全データを使用）
-    ///
-    /// # Returns
-    /// * `Result<(), Box<dyn std::error::Error + Send + Sync>>` - 学習結果
     pub fn train_model(
         &self,
         min_games: i32,
@@ -682,7 +549,6 @@ impl Evaluator {
             }
         };
 
-        // サンプリング処理（メモリ効率化と処理時間短縮）
         let records = if let Some(max_samples) = max_samples {
             if records.len() > max_samples {
                 println!(
@@ -691,26 +557,22 @@ impl Evaluator {
                     max_samples
                 );
 
-                // ランダムサンプリング（重み付き：total_gamesが多いほど選ばれやすい）
                 use rand::seq::SliceRandom;
                 use rand::thread_rng;
 
                 let mut rng = thread_rng();
                 let mut sampled_records = Vec::with_capacity(max_samples);
 
-                // 重み付きサンプリングのためのインデックスと重みを作成
                 let mut weighted_indices: Vec<(usize, i32)> = records
                     .iter()
                     .enumerate()
                     .map(|(i, (_, _, _, total_games))| (i, *total_games))
                     .collect();
 
-                // 重みに基づいてサンプリング
                 for _ in 0..max_samples {
                     if let Ok(&(idx, _)) = weighted_indices.choose_weighted(&mut rng, |item| item.1)
                     {
                         sampled_records.push(records[idx].clone());
-                        // 選ばれたインデックスを削除（重複を避ける）
                         weighted_indices.retain(|(i, _)| *i != idx);
                     }
                 }
@@ -728,8 +590,6 @@ impl Evaluator {
         };
 
         let mut training_data = TrainingData::new();
-
-        // 事前に容量を確保（メモリ効率化）
         training_data.inputs.reserve(records.len());
         training_data.targets.reserve(records.len());
 
@@ -759,7 +619,6 @@ impl Evaluator {
             let target = vec![white_win_rate, black_win_rate, draw_rate];
             training_data.add_sample(board_vector, target);
 
-            // 進捗表示（1000個ごと）
             if (i + 1) % 1000 == 0 {
                 let elapsed = processing_start.elapsed();
                 println!(
@@ -820,19 +679,11 @@ impl Evaluator {
     }
 
     /// モデルを読み込み、任意の盤面で推論を実行（評価関数実行）
-    ///
-    /// # Arguments
-    /// * `board` - 評価する盤面
-    /// * `model_path` - モデルファイルのパス
-    ///
-    /// # Returns
-    /// * `Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>>` - (白の勝率予測, 黒の勝率予測, 引き分け率予測)
     pub fn evaluate_position(
         &self,
         board: &Board,
         model_path: Option<&str>,
     ) -> Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>> {
-        // model_path引数が指定されていればそれを使用、そうでなければ構造体のフィールドを使用
         let path = match model_path {
             Some(p) => p,
             None => self
@@ -857,13 +708,7 @@ impl Evaluator {
         Ok((white_win_rate, black_win_rate, draw_rate))
     }
 
-    /// 特定のレコードの詳細情報を取得（デバッグ用）
-    ///
-    /// # Arguments
-    /// * `record_id` - 取得するレコードのID
-    ///
-    /// # Returns
-    /// * `Result<Option<TrainingRecord>, Box<dyn std::error::Error + Send + Sync>>` - レコード情報
+    /// 特定のレコードの詳細情報を取得
     pub fn get_record_details(
         &self,
         record_id: i64,
@@ -935,9 +780,6 @@ impl Evaluator {
     }
 
     /// データベースの統計情報を取得
-    ///
-    /// # Returns
-    /// * `Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>>` - (総レコード数, 総ゲーム数, 平均ゲーム数)
     pub fn get_database_stats(
         &self,
     ) -> Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>> {
@@ -989,27 +831,16 @@ impl Evaluator {
     }
 }
 
-/// Neural Network Evaluator - EvaluatorTrait を実装
-/// Evaluatorを探索エンジンで使用可能にする
-impl EvaluatorTrait for Evaluator {
+impl Evaluator for NeuralEvaluator {
     fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
-        // モデルベースの評価を試みる
-        // モデルパスが設定されている場合はそれを使用、そうでない場合は構造体のフィールドを使用
         let model_path = self.model_path.as_deref();
-
         match self.evaluate_position(board, model_path) {
-            Ok((white_win_rate, black_win_rate, _draw_rate)) => {
-                // 指定された色の視点で評価値を計算
-                // 白の勝率から見た評価 = (white_win_rate - black_win_rate) * 10000
-
-                match color {
-                    ColorType::White => (white_win_rate - black_win_rate) * 10000.0,
-                    ColorType::Black => (black_win_rate - white_win_rate) * 10000.0,
-                    _ => 0.0,
-                }
-            }
+            Ok((white_win_rate, black_win_rate, _draw_rate)) => match color {
+                ColorType::White => (white_win_rate - black_win_rate) * 10000.0,
+                ColorType::Black => (black_win_rate - white_win_rate) * 10000.0,
+                _ => 0.0,
+            },
             Err(_) => {
-                // モデルがない場合は簡易評価を使用
                 let simple_eval = SimpleEvaluator::new();
                 simple_eval.evaluate(board, color)
             }
@@ -1017,9 +848,8 @@ impl EvaluatorTrait for Evaluator {
     }
 }
 
-/// Python用のラッパー関数
 #[pymethods]
-impl Evaluator {
+impl NeuralEvaluator {
     #[new]
     #[pyo3(signature = (db_type_str=None, connection_string=None, model_path=None))]
     pub fn new_for_python(
