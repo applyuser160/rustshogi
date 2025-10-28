@@ -13,8 +13,8 @@ from ._core import (
     SimpleEvaluator,
     EvaluationResult,
     SearchStrategy,
-    MinMaxSearch,
-    AlphaBetaSearch,
+    MinMaxSearchStrategy,
+    AlphaBetaSearchStrategy,
     SearchEngine,
 )
 
@@ -33,7 +33,7 @@ __all__ = [
     "SimpleEvaluator",
     "EvaluationResult",
     "SearchStrategy",
-    "MinMaxSearch",
-    "AlphaBetaSearch",
+    "MinMaxSearchStrategy",
+    "AlphaBetaSearchStrategy",
     "SearchEngine",
 ]

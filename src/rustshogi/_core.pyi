@@ -174,10 +174,10 @@ class EvaluationResult:
 class SearchStrategy(ABC):
     pass
 
-class MinMaxSearch:
+class MinMaxSearchStrategy:
     def __init__(self, max_nodes: int) -> None: ...
 
-class AlphaBetaSearch:
+class AlphaBetaSearchStrategy:
     def __init__(self, max_nodes: int) -> None: ...
 
 class SearchEngine:

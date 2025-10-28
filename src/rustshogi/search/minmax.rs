@@ -7,11 +7,11 @@ use pyo3::prelude::*;
 
 /// MinMax探索アルゴリズム
 #[pyclass]
-pub struct MinMaxSearch {
+pub struct MinMaxSearchStrategy {
     max_nodes: u64,
 }
 
-impl MinMaxSearch {
+impl MinMaxSearchStrategy {
     pub fn new(max_nodes: u64) -> Self {
         Self { max_nodes }
     }
@@ -55,14 +55,14 @@ impl MinMaxSearch {
 }
 
 #[pymethods]
-impl MinMaxSearch {
+impl MinMaxSearchStrategy {
     #[new]
     pub fn new_for_python(max_nodes: u64) -> Self {
         Self::new(max_nodes)
     }
 }
 
-impl SearchStrategy for MinMaxSearch {
+impl SearchStrategy for MinMaxSearchStrategy {
     fn search(
         &self,
         board: &Board,

@@ -55,9 +55,6 @@ pub mod test_common;
 #[path = "rustshogi/test_direction.rs"]
 pub mod test_direction;
 #[cfg(test)]
-#[path = "rustshogi/test_evaluator.rs"]
-pub mod test_evaluator;
-#[cfg(test)]
 #[path = "rustshogi/test_game.rs"]
 pub mod test_game;
 #[cfg(test)]
@@ -66,6 +63,9 @@ pub mod test_hand;
 #[cfg(test)]
 #[path = "rustshogi/test_moves.rs"]
 pub mod test_moves;
+#[cfg(test)]
+#[path = "rustshogi/test_neural_evaluator.rs"]
+pub mod test_neural_evaluator;
 #[cfg(test)]
 #[path = "rustshogi/test_nn_model.rs"]
 pub mod test_nn_model;
@@ -99,7 +99,7 @@ fn rustshogi(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<evaluator::simple::SimpleEvaluator>()?;
     m.add_class::<search::engine::SearchEngine>()?;
     m.add_class::<search::search_strategy::EvaluationResult>()?;
-    m.add_class::<search::alphabeta::AlphaBetaSearch>()?;
-    m.add_class::<search::minmax::MinMaxSearch>()?;
+    m.add_class::<search::alphabeta::AlphaBetaSearchStrategy>()?;
+    m.add_class::<search::minmax::MinMaxSearchStrategy>()?;
     Ok(())
 }

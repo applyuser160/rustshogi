@@ -7,12 +7,12 @@ use pyo3::prelude::*;
 
 /// AlphaBeta探索アルゴリズム
 #[pyclass]
-pub struct AlphaBetaSearch {
+pub struct AlphaBetaSearchStrategy {
     #[pyo3(get, set)]
     pub max_nodes: u64,
 }
 
-impl AlphaBetaSearch {
+impl AlphaBetaSearchStrategy {
     pub fn new(max_nodes: u64) -> Self {
         Self { max_nodes }
     }
@@ -67,7 +67,7 @@ impl AlphaBetaSearch {
 }
 
 #[pymethods]
-impl AlphaBetaSearch {
+impl AlphaBetaSearchStrategy {
     #[new]
     #[pyo3(signature = (max_nodes=100))]
     pub fn new_for_python(max_nodes: u64) -> Self {
@@ -75,7 +75,7 @@ impl AlphaBetaSearch {
     }
 }
 
-impl SearchStrategy for AlphaBetaSearch {
+impl SearchStrategy for AlphaBetaSearchStrategy {
     fn search(
         &self,
         board: &Board,

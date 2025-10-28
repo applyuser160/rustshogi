@@ -6,7 +6,9 @@ mod tests {
     use crate::evaluator::abst::Evaluator;
     use crate::evaluator::simple::SimpleEvaluator;
     use crate::piece::PieceType;
-    use crate::search::{AlphaBetaSearch, MinMaxSearch, SearchEngine, SearchStrategy};
+    use crate::search::{
+        AlphaBetaSearchStrategy, MinMaxSearchStrategy, SearchEngine, SearchStrategy,
+    };
 
     fn create_starting_board() -> Board {
         let mut board = Board::new();
@@ -27,7 +29,7 @@ mod tests {
     #[test]
     fn test_minmax_search() {
         let board = create_starting_board();
-        let search = MinMaxSearch::new(10000);
+        let search = MinMaxSearchStrategy::new(10000);
 
         let evaluator = SimpleEvaluator::new();
         let result = search.search(&board, ColorType::Black, 2, Some(&evaluator));
@@ -40,7 +42,7 @@ mod tests {
     #[test]
     fn test_alphabeta_search() {
         let board = create_starting_board();
-        let search = AlphaBetaSearch::new(10000);
+        let search = AlphaBetaSearchStrategy::new(10000);
 
         let evaluator = SimpleEvaluator::new();
         let result = search.search(&board, ColorType::Black, 2, Some(&evaluator));
@@ -53,8 +55,8 @@ mod tests {
     #[test]
     fn test_alphabeta_vs_minmax() {
         let board = create_starting_board();
-        let minmax_search = MinMaxSearch::new(50000);
-        let alphabeta_search = AlphaBetaSearch::new(50000);
+        let minmax_search = MinMaxSearchStrategy::new(50000);
+        let alphabeta_search = AlphaBetaSearchStrategy::new(50000);
         let evaluator = SimpleEvaluator::new();
 
         let minmax_result = minmax_search.search(&board, ColorType::Black, 2, Some(&evaluator));
@@ -77,7 +79,8 @@ mod tests {
     fn test_search_engine() {
         let board = create_starting_board();
         let evaluator = SimpleEvaluator::new();
-        let strategy: Box<dyn SearchStrategy + Send + Sync> = Box::new(MinMaxSearch::new(10000));
+        let strategy: Box<dyn SearchStrategy + Send + Sync> =
+            Box::new(MinMaxSearchStrategy::new(10000));
         let search_engine = SearchEngine::new(strategy, Some(Box::new(evaluator)));
 
         let result = search_engine.search(&board, ColorType::Black, 2);
@@ -89,7 +92,7 @@ mod tests {
     #[test]
     fn test_different_depths() {
         let board = create_starting_board();
-        let search = AlphaBetaSearch::new(100000);
+        let search = AlphaBetaSearchStrategy::new(100000);
         let evaluator = SimpleEvaluator::new();
 
         let result_depth_1 = search.search(&board, ColorType::Black, 1, Some(&evaluator));
@@ -123,7 +126,7 @@ mod tests {
             ColorType::White,
         );
 
-        let search = AlphaBetaSearch::new(10000);
+        let search = AlphaBetaSearchStrategy::new(10000);
         let evaluator = SimpleEvaluator::new();
 
         let result = search.search(&board, ColorType::Black, 3, Some(&evaluator));
@@ -139,7 +142,7 @@ mod tests {
         // 不可能な局面ではなく、実際に合法手がない可能性をテスト
         board.startpos();
 
-        let search = AlphaBetaSearch::new(1000);
+        let search = AlphaBetaSearchStrategy::new(1000);
         let evaluator = SimpleEvaluator::new();
 
         let result = search.search(&board, ColorType::Black, 1, Some(&evaluator));

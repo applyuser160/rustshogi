@@ -3,8 +3,8 @@ use super::super::color::ColorType;
 use super::super::evaluator::abst::Evaluator;
 use super::super::evaluator::neural::NeuralEvaluator;
 use super::super::evaluator::simple::SimpleEvaluator;
-use super::alphabeta::AlphaBetaSearch;
-use super::minmax::MinMaxSearch;
+use super::alphabeta::AlphaBetaSearchStrategy;
+use super::minmax::MinMaxSearchStrategy;
 use super::search_strategy::{EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
 
@@ -29,24 +29,24 @@ impl EvaluatorWrapper {
 /// 探索戦略と評価関数を組み合わせて使用
 #[pyclass]
 pub struct SearchEngine {
-    strategy: Box<dyn SearchStrategy + Send + Sync>,
+    search_strategy: Box<dyn SearchStrategy + Send + Sync>,
     evaluator: Option<Box<dyn Evaluator + Send + Sync>>,
 }
 
 impl SearchEngine {
     pub fn new(
-        strategy: Box<dyn SearchStrategy + Send + Sync>,
+        search_strategy: Box<dyn SearchStrategy + Send + Sync>,
         evaluator: Option<Box<dyn Evaluator + Send + Sync>>,
     ) -> Self {
         Self {
-            strategy,
+            search_strategy,
             evaluator,
         }
     }
 
     /// 探索を実行する
     pub fn search(&self, board: &Board, color: ColorType, depth: u8) -> EvaluationResult {
-        self.strategy.search(
+        self.search_strategy.search(
             board,
             color,
             depth,
@@ -66,10 +66,10 @@ impl SearchEngine {
         max_nodes: u64,
         evaluator: Option<EvaluatorWrapper>,
     ) -> PyResult<Self> {
-        let strategy: Box<dyn SearchStrategy + Send + Sync> =
+        let search_strategy: Box<dyn SearchStrategy + Send + Sync> =
             match algorithm.to_lowercase().as_str() {
-                "alphabeta" => Box::new(AlphaBetaSearch::new(max_nodes)),
-                _ => Box::new(MinMaxSearch::new(max_nodes)),
+                "alphabeta" => Box::new(AlphaBetaSearchStrategy::new(max_nodes)),
+                _ => Box::new(MinMaxSearchStrategy::new(max_nodes)),
             };
 
         // evaluatorがNoneの場合はデフォルトでSimpleEvaluatorを使用
@@ -77,7 +77,7 @@ impl SearchEngine {
             .map(|e| e.into_evaluator())
             .or_else(|| Some(Box::new(SimpleEvaluator::new())));
 
-        Ok(Self::new(strategy, evaluator))
+        Ok(Self::new(search_strategy, evaluator))
     }
 
     #[pyo3(name = "search")]
