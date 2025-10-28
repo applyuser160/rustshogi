@@ -14,43 +14,6 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Instant;
 
-/// ニューラルネットワーク評価関数（簡易版）
-/// モデルを使用して評価を実行
-pub struct NeuralNetworkEvaluator {
-    model_path: Option<String>,
-}
-
-impl NeuralNetworkEvaluator {
-    pub fn new(model_path: Option<String>) -> Self {
-        Self { model_path }
-    }
-
-    fn evaluate_with_model(&self, board: &Board, color: ColorType) -> Result<f32, String> {
-        if let Some(ref path) = self.model_path {
-            if !Path::new(path).exists() {
-                return Err(format!("モデルファイルが見つかりません: {}", path));
-            }
-
-            let simple_eval = SimpleEvaluator::new();
-            Ok(simple_eval.evaluate(board, color))
-        } else {
-            Err("モデルパスが設定されていません".to_string())
-        }
-    }
-}
-
-impl Evaluator for NeuralNetworkEvaluator {
-    fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
-        match self.evaluate_with_model(board, color) {
-            Ok(score) => score,
-            Err(_) => {
-                let simple_eval = SimpleEvaluator::new();
-                simple_eval.evaluate(board, color)
-            }
-        }
-    }
-}
-
 /// 学習データベースのレコード構造体
 #[derive(Debug, Serialize, Deserialize)]
 #[pyclass]

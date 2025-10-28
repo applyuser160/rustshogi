@@ -128,7 +128,7 @@ class MctsResult:
 
     def merge(self, other: MctsResult) -> None: ...
 
-class Evaluator:
+class NeuralEvaluator:
     def __init__(
         self,
         db_type_str: str | None = None,
