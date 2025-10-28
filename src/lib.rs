@@ -32,6 +32,8 @@ pub mod piece;
 pub mod random;
 #[path = "rustshogi/search.rs"]
 pub mod search;
+#[path = "rustshogi/search_strategy.rs"]
+pub mod search_strategy;
 
 #[cfg(test)]
 #[path = "rustshogi/test_address.rs"]

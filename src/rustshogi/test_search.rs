@@ -1,6 +1,8 @@
 use super::board::Board;
 use super::color::ColorType;
+use super::evaluator::*;
 use super::search::*;
+use super::search_strategy::*;
 use crate::address::Address;
 use crate::piece::PieceType;
 

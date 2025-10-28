@@ -2,7 +2,6 @@ use super::board::Board;
 use super::color::ColorType;
 use super::game::Game;
 use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
-use super::search::EvaluatorTrait;
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use burn::module::Module;
@@ -12,6 +11,146 @@ use rand;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Instant;
+
+/// 評価関数のトレイト
+/// 各評価関数はこのトレイトを実装することで、探索エンジンで使用可能
+pub trait EvaluatorTrait: Send + Sync {
+    /// 盤面を評価する
+    ///
+    /// # Arguments
+    /// * `board` - 評価する盤面
+    /// * `color` - 評価するプレイヤーの色
+    ///
+    /// # Returns
+    /// 評価値（colorの視点での評価、大きい方が有利）
+    fn evaluate(&self, board: &Board, color: ColorType) -> f32;
+}
+
+/// 簡易評価関数（駒の価値のみを使用）
+#[derive(Debug, Clone)]
+pub struct SimpleEvaluator {
+    pub piece_values: std::collections::HashMap<super::piece::PieceType, f32>,
+}
+
+impl Default for SimpleEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SimpleEvaluator {
+    pub fn new() -> Self {
+        let mut piece_values = std::collections::HashMap::new();
+        piece_values.insert(super::piece::PieceType::King, 10000.0);
+        piece_values.insert(super::piece::PieceType::Dragon, 12.0);
+        piece_values.insert(super::piece::PieceType::Horse, 11.0);
+        piece_values.insert(super::piece::PieceType::Rook, 10.0);
+        piece_values.insert(super::piece::PieceType::Bichop, 9.0);
+        piece_values.insert(super::piece::PieceType::Gold, 6.0);
+        piece_values.insert(super::piece::PieceType::Silver, 5.0);
+        piece_values.insert(super::piece::PieceType::Knight, 4.0);
+        piece_values.insert(super::piece::PieceType::Lance, 3.0);
+        piece_values.insert(super::piece::PieceType::Pawn, 1.0);
+        piece_values.insert(super::piece::PieceType::ProSilver, 6.0);
+        piece_values.insert(super::piece::PieceType::ProKnight, 5.0);
+        piece_values.insert(super::piece::PieceType::ProLance, 4.0);
+        piece_values.insert(super::piece::PieceType::ProPawn, 3.0);
+
+        Self { piece_values }
+    }
+}
+
+impl EvaluatorTrait for SimpleEvaluator {
+    fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
+        let mut score = 0.0;
+
+        // 盤上の駒を評価
+        for row in 1..=9 {
+            for col in 1..=9 {
+                let address = super::address::Address::from_numbers(col, row);
+                let index = address.to_index();
+                let piece = board.get_piece(index);
+
+                if piece.piece_type != super::piece::PieceType::None {
+                    if let Some(&value) = self.piece_values.get(&piece.piece_type) {
+                        if piece.owner == color {
+                            score += value;
+                        } else {
+                            score -= value;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 持ち駒を評価
+        for color_type in [ColorType::Black, ColorType::White] {
+            for piece_type in [
+                super::piece::PieceType::Rook,
+                super::piece::PieceType::Bichop,
+                super::piece::PieceType::Gold,
+                super::piece::PieceType::Silver,
+                super::piece::PieceType::Knight,
+                super::piece::PieceType::Lance,
+                super::piece::PieceType::Pawn,
+            ] {
+                let count = board.hand.get_count(color_type, piece_type);
+                if count > 0 {
+                    if let Some(&value) = self.piece_values.get(&piece_type) {
+                        if color_type == color {
+                            score += value * count as f32;
+                        } else {
+                            score -= value * count as f32;
+                        }
+                    }
+                }
+            }
+        }
+
+        score
+    }
+}
+
+/// ニューラルネットワーク評価関数
+/// ニューラルネットワークモデルを使用して盤面を評価
+pub struct NeuralNetworkEvaluator {
+    model_path: Option<String>,
+}
+
+impl NeuralNetworkEvaluator {
+    pub fn new(model_path: Option<String>) -> Self {
+        Self { model_path }
+    }
+
+    fn evaluate_with_model(&self, board: &Board, color: ColorType) -> Result<f32, String> {
+        if let Some(ref path) = self.model_path {
+            if !Path::new(path).exists() {
+                return Err(format!("モデルファイルが見つかりません: {}", path));
+            }
+
+            // モデルを使用して評価
+            // ここでは簡略化のため、SimpleEvaluatorをフォールバックとして使用
+            // 実際のニューラルネットワーク評価は Evaluator::evaluate_position を使用
+            let simple_eval = SimpleEvaluator::new();
+            Ok(simple_eval.evaluate(board, color))
+        } else {
+            Err("モデルパスが設定されていません".to_string())
+        }
+    }
+}
+
+impl EvaluatorTrait for NeuralNetworkEvaluator {
+    fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
+        match self.evaluate_with_model(board, color) {
+            Ok(score) => score,
+            Err(_) => {
+                // フォールバック: SimpleEvaluatorを使用
+                let simple_eval = SimpleEvaluator::new();
+                simple_eval.evaluate(board, color)
+            }
+        }
+    }
+}
 
 /// 学習データベースのレコード構造体
 #[derive(Debug, Serialize, Deserialize)]
@@ -871,7 +1010,7 @@ impl EvaluatorTrait for Evaluator {
             }
             Err(_) => {
                 // モデルがない場合は簡易評価を使用
-                let simple_eval = super::search::SimpleEvaluator::new();
+                let simple_eval = SimpleEvaluator::new();
                 simple_eval.evaluate(board, color)
             }
         }
