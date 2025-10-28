@@ -42,18 +42,26 @@ pub enum DatabaseType {
 /// 評価関数システム
 #[pyclass]
 pub struct Evaluator {
-    db_type: DatabaseType,
+    db_type: Option<DatabaseType>,
+    model_path: Option<String>,
 }
 
 impl Evaluator {
     /// 新しい評価関数システムを作成
-    pub fn new(db_type: DatabaseType) -> Self {
-        Self { db_type }
+    pub fn new(db_type: Option<DatabaseType>, model_path: Option<String>) -> Self {
+        Self {
+            db_type,
+            model_path,
+        }
     }
 
     /// データベーステーブルを初期化
     pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match &self.db_type {
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
+        match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
 
@@ -126,12 +134,16 @@ impl Evaluator {
         &self,
         count: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         let mut saved_count = 0;
         let start_time = Instant::now();
 
         println!("{}個のランダム盤面を生成中...", count);
 
-        match &self.db_type {
+        match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
 
@@ -225,8 +237,12 @@ impl Evaluator {
         max_records: Option<usize>,
         num_threads: usize,
     ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         let start_time = Instant::now();
-        let records = match &self.db_type {
+        let records = match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
                 let query = "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC";
@@ -348,7 +364,7 @@ impl Evaluator {
         let mut updated_count = 0;
 
         for (id, white_wins, black_wins, total_games) in all_results {
-            let update_result = match &self.db_type {
+            let update_result = match db_type {
                 DatabaseType::Sqlite(db_path) => {
                     let conn = rusqlite::Connection::open(db_path)?;
                     let rows_affected = conn.execute(
@@ -459,9 +475,13 @@ impl Evaluator {
         model_save_path: String,
         max_samples: Option<usize>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
         let start_time = Instant::now();
         println!("モデルの訓練を開始します...");
-        let records = match &self.db_type {
+        let records = match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
                 let mut stmt = conn.prepare(
@@ -670,13 +690,22 @@ impl Evaluator {
     pub fn evaluate_position(
         &self,
         board: &Board,
-        model_path: &str,
+        model_path: Option<&str>,
     ) -> Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>> {
+        // model_path引数が指定されていればそれを使用、そうでなければ構造体のフィールドを使用
+        let path = match model_path {
+            Some(p) => p,
+            None => self
+                .model_path
+                .as_ref()
+                .ok_or("モデルパスが設定されていません")?
+                .as_str(),
+        };
         let device = NdArrayDevice::default();
         let model_config = NnModelConfig::default();
         let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
         let model: NnModel<Autodiff<NdArray>> =
-            NnModel::new(&model_config, &device).load_file(model_path, &recorder, &device)?;
+            NnModel::new(&model_config, &device).load_file(path, &recorder, &device)?;
 
         let board_vector = board.to_vector(None);
         let prediction = model.predict_single(board_vector);
@@ -699,7 +728,11 @@ impl Evaluator {
         &self,
         record_id: i64,
     ) -> Result<Option<TrainingRecord>, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.db_type {
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
+        match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
                 let mut stmt = conn.prepare(
@@ -768,7 +801,11 @@ impl Evaluator {
     pub fn get_database_stats(
         &self,
     ) -> Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>> {
-        match &self.db_type {
+        let db_type = self
+            .db_type
+            .as_ref()
+            .ok_or("データベースタイプが設定されていません")?;
+        match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
                 let mut stmt = conn.prepare(
@@ -816,15 +853,23 @@ impl Evaluator {
 #[pymethods]
 impl Evaluator {
     #[new]
-    pub fn new_for_python(db_type_str: String, connection_string: String) -> Self {
-        let db_type = if db_type_str.to_lowercase() == "postgres"
-            || db_type_str.to_lowercase() == "postgresql"
-        {
-            DatabaseType::Postgres(connection_string)
-        } else {
-            DatabaseType::Sqlite(connection_string)
+    #[pyo3(signature = (db_type_str=None, connection_string=None, model_path=None))]
+    pub fn new_for_python(
+        db_type_str: Option<String>,
+        connection_string: Option<String>,
+        model_path: Option<String>,
+    ) -> Self {
+        let db_type = match (db_type_str, connection_string) {
+            (Some(db_str), Some(conn_str)) => {
+                if db_str.to_lowercase() == "postgres" || db_str.to_lowercase() == "postgresql" {
+                    Some(DatabaseType::Postgres(conn_str))
+                } else {
+                    Some(DatabaseType::Sqlite(conn_str))
+                }
+            }
+            _ => None,
         };
-        Self::new(db_type)
+        Self::new(db_type, model_path)
     }
 
     #[pyo3(name = "init_database")]
@@ -924,12 +969,13 @@ impl Evaluator {
     }
 
     #[pyo3(name = "evaluate_position")]
+    #[pyo3(signature = (board, model_path=None))]
     pub fn python_evaluate_position(
         &self,
         board: &Board,
-        model_path: String,
+        model_path: Option<String>,
     ) -> PyResult<(f32, f32, f32)> {
-        self.evaluate_position(board, &model_path)
+        self.evaluate_position(board, model_path.as_deref())
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
