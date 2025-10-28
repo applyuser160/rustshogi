@@ -10,8 +10,8 @@ pub mod color;
 pub mod common;
 #[path = "rustshogi/direction.rs"]
 pub mod direction;
-#[path = "rustshogi/evaluator.rs"]
-pub mod evaluator;
+// #[path = "rustshogi/evaluator.rs"]
+// pub mod evaluator;
 #[path = "rustshogi/game.rs"]
 pub mod game;
 #[path = "rustshogi/hand.rs"]
@@ -22,14 +22,16 @@ pub mod mctsresult;
 pub mod move_pattern;
 #[path = "rustshogi/moves.rs"]
 pub mod moves;
-#[path = "rustshogi/nn_model.rs"]
-pub mod nn_model;
+// #[path = "rustshogi/nn_model.rs"]
+// pub mod nn_model;
 #[path = "rustshogi/pca.rs"]
 pub mod pca;
 #[path = "rustshogi/piece.rs"]
 pub mod piece;
 #[path = "rustshogi/random.rs"]
 pub mod random;
+#[path = "rustshogi/search_engine.rs"]
+pub mod search_engine;
 
 #[cfg(test)]
 #[path = "rustshogi/test_address.rs"]
@@ -52,9 +54,9 @@ pub mod test_common;
 #[cfg(test)]
 #[path = "rustshogi/test_direction.rs"]
 pub mod test_direction;
-#[cfg(test)]
-#[path = "rustshogi/test_evaluator.rs"]
-pub mod test_evaluator;
+// #[cfg(test)]
+// #[path = "rustshogi/test_evaluator.rs"]
+// pub mod test_evaluator;
 #[cfg(test)]
 #[path = "rustshogi/test_game.rs"]
 pub mod test_game;
@@ -64,9 +66,9 @@ pub mod test_hand;
 #[cfg(test)]
 #[path = "rustshogi/test_moves.rs"]
 pub mod test_moves;
-#[cfg(test)]
-#[path = "rustshogi/test_nn_model.rs"]
-pub mod test_nn_model;
+// #[cfg(test)]
+// #[path = "rustshogi/test_nn_model.rs"]
+// pub mod test_nn_model;
 #[cfg(test)]
 #[path = "rustshogi/test_pca.rs"]
 pub mod test_pca;
@@ -90,6 +92,6 @@ fn rustshogi(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<board::Board>()?;
     m.add_class::<game::Game>()?;
     m.add_class::<mctsresult::MctsResult>()?;
-    m.add_class::<evaluator::Evaluator>()?;
+    // m.add_class::<evaluator::Evaluator>()?;
     Ok(())
 }
