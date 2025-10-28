@@ -9,6 +9,13 @@ from ._core import (
     Game,
     MctsResult,
     Evaluator,
+    NeuralEvaluator,
+    SimpleEvaluator,
+    EvaluationResult,
+    SearchStrategy,
+    MinMaxSearchStrategy,
+    AlphaBetaSearchStrategy,
+    SearchEngine,
 )
 
 __all__ = [
@@ -22,4 +29,11 @@ __all__ = [
     "Game",
     "MctsResult",
     "Evaluator",
+    "NeuralEvaluator",
+    "SimpleEvaluator",
+    "EvaluationResult",
+    "SearchStrategy",
+    "MinMaxSearchStrategy",
+    "AlphaBetaSearchStrategy",
+    "SearchEngine",
 ]

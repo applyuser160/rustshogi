@@ -1,7 +1,9 @@
-use super::board::Board;
-use super::color::ColorType;
-use super::game::Game;
-use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+use super::super::board::Board;
+use super::super::color::ColorType;
+use super::super::game::Game;
+use super::super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+use super::abst::Evaluator;
+use super::simple::SimpleEvaluator;
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use burn::module::Module;
@@ -39,14 +41,15 @@ pub enum DatabaseType {
     Postgres(String), // PostgreSQL接続文字列
 }
 
-/// 評価関数システム
+/// ニューラルネットワーク評価関数システム
 #[pyclass]
-pub struct Evaluator {
+#[derive(Clone)]
+pub struct NeuralEvaluator {
     db_type: Option<DatabaseType>,
     model_path: Option<String>,
 }
 
-impl Evaluator {
+impl NeuralEvaluator {
     /// 新しい評価関数システムを作成
     pub fn new(db_type: Option<DatabaseType>, model_path: Option<String>) -> Self {
         Self {
@@ -124,12 +127,6 @@ impl Evaluator {
     }
 
     /// ランダム盤面を生成してRDBに保存
-    ///
-    /// # Arguments
-    /// * `count` - 生成する盤面の数
-    ///
-    /// # Returns
-    /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 保存されたレコード数
     pub fn generate_and_save_random_boards(
         &self,
         count: usize,
@@ -222,15 +219,6 @@ impl Evaluator {
     }
 
     /// 保存されたレコードを読み取り、ランダム対局を実行して勝利数を更新
-    ///
-    /// # Arguments
-    /// * `trials_per_record` - 各レコードに対する試行回数
-    /// * `max_records` - 処理する最大レコード数（Noneの場合は全て）
-    /// * `num_threads` - スレッド数
-    /// * `num_processes` - プロセス数
-    ///
-    /// # Returns
-    /// * `Result<i32, Box<dyn std::error::Error + Send + Sync>>` - 更新されたレコード数
     pub fn update_records_with_random_games(
         &self,
         trials_per_record: usize,
@@ -302,7 +290,6 @@ impl Evaluator {
             num_threads
         );
 
-        // 処理開始前のデータベース統計を表示
         match self.get_database_stats() {
             Ok((total_records, total_games, avg_games)) => {
                 println!(
@@ -315,14 +302,11 @@ impl Evaluator {
             }
         }
 
-        // 進捗追跡用のカウンター
         let mut processed_count = 0;
         let total_records = records.len();
         let mut all_results = Vec::new();
 
-        // 各レコードを順次処理（random_move_parallel内で並列化）
         for (id, board_sfen) in records {
-            // SFEN形式からBoardを復元
             let board = Board::from_sfen(board_sfen);
             let color = if rand::random::<bool>() {
                 ColorType::White
@@ -331,7 +315,6 @@ impl Evaluator {
             };
             let game = Game::from(board.clone(), 1, color, ColorType::None);
 
-            // random_move_parallel内で並列処理を実行
             let mcts_results = game.random_move_parallel(trials_per_record, num_threads);
             let white_wins = mcts_results.iter().map(|r| r.white_wins as i32).sum();
             let black_wins = mcts_results.iter().map(|r| r.black_wins as i32).sum();
@@ -340,7 +323,6 @@ impl Evaluator {
             all_results.push((id, white_wins, black_wins, total_games));
             processed_count += 1;
 
-            // 10個ごと、または最後のレコードで進捗を表示
             if processed_count % 10 == 0 || processed_count == total_records {
                 let elapsed = start_time.elapsed();
                 let progress_percent = (processed_count as f64 / total_records as f64) * 100.0;
@@ -359,7 +341,6 @@ impl Evaluator {
             all_results.len()
         );
 
-        // データベース書き込み（順次処理）
         println!("データベースへの書き込みを開始します...");
         let mut updated_count = 0;
 
@@ -436,7 +417,6 @@ impl Evaluator {
             updated_count
         );
 
-        // データベースの統計情報を表示
         match self.get_database_stats() {
             Ok((total_records, total_games, avg_games)) => {
                 println!(
@@ -459,15 +439,6 @@ impl Evaluator {
     }
 
     /// 学習データを取得してモデルを訓練
-    ///
-    /// # Arguments
-    /// * `min_games` - 最小ゲーム数（この数以上のゲームが実行されたレコードのみ使用）
-    /// * `training_config` - 学習設定
-    /// * `model_save_path` - モデル保存パス
-    /// * `max_samples` - 最大サンプル数（Noneの場合は全データを使用）
-    ///
-    /// # Returns
-    /// * `Result<(), Box<dyn std::error::Error + Send + Sync>>` - 学習結果
     pub fn train_model(
         &self,
         min_games: i32,
@@ -542,7 +513,6 @@ impl Evaluator {
             }
         };
 
-        // サンプリング処理（メモリ効率化と処理時間短縮）
         let records = if let Some(max_samples) = max_samples {
             if records.len() > max_samples {
                 println!(
@@ -551,26 +521,22 @@ impl Evaluator {
                     max_samples
                 );
 
-                // ランダムサンプリング（重み付き：total_gamesが多いほど選ばれやすい）
                 use rand::seq::SliceRandom;
                 use rand::thread_rng;
 
                 let mut rng = thread_rng();
                 let mut sampled_records = Vec::with_capacity(max_samples);
 
-                // 重み付きサンプリングのためのインデックスと重みを作成
                 let mut weighted_indices: Vec<(usize, i32)> = records
                     .iter()
                     .enumerate()
                     .map(|(i, (_, _, _, total_games))| (i, *total_games))
                     .collect();
 
-                // 重みに基づいてサンプリング
                 for _ in 0..max_samples {
                     if let Ok(&(idx, _)) = weighted_indices.choose_weighted(&mut rng, |item| item.1)
                     {
                         sampled_records.push(records[idx].clone());
-                        // 選ばれたインデックスを削除（重複を避ける）
                         weighted_indices.retain(|(i, _)| *i != idx);
                     }
                 }
@@ -588,8 +554,6 @@ impl Evaluator {
         };
 
         let mut training_data = TrainingData::new();
-
-        // 事前に容量を確保（メモリ効率化）
         training_data.inputs.reserve(records.len());
         training_data.targets.reserve(records.len());
 
@@ -619,7 +583,6 @@ impl Evaluator {
             let target = vec![white_win_rate, black_win_rate, draw_rate];
             training_data.add_sample(board_vector, target);
 
-            // 進捗表示（1000個ごと）
             if (i + 1) % 1000 == 0 {
                 let elapsed = processing_start.elapsed();
                 println!(
@@ -680,19 +643,11 @@ impl Evaluator {
     }
 
     /// モデルを読み込み、任意の盤面で推論を実行（評価関数実行）
-    ///
-    /// # Arguments
-    /// * `board` - 評価する盤面
-    /// * `model_path` - モデルファイルのパス
-    ///
-    /// # Returns
-    /// * `Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>>` - (白の勝率予測, 黒の勝率予測, 引き分け率予測)
     pub fn evaluate_position(
         &self,
         board: &Board,
         model_path: Option<&str>,
     ) -> Result<(f32, f32, f32), Box<dyn std::error::Error + Send + Sync>> {
-        // model_path引数が指定されていればそれを使用、そうでなければ構造体のフィールドを使用
         let path = match model_path {
             Some(p) => p,
             None => self
@@ -717,13 +672,7 @@ impl Evaluator {
         Ok((white_win_rate, black_win_rate, draw_rate))
     }
 
-    /// 特定のレコードの詳細情報を取得（デバッグ用）
-    ///
-    /// # Arguments
-    /// * `record_id` - 取得するレコードのID
-    ///
-    /// # Returns
-    /// * `Result<Option<TrainingRecord>, Box<dyn std::error::Error + Send + Sync>>` - レコード情報
+    /// 特定のレコードの詳細情報を取得
     pub fn get_record_details(
         &self,
         record_id: i64,
@@ -795,9 +744,6 @@ impl Evaluator {
     }
 
     /// データベースの統計情報を取得
-    ///
-    /// # Returns
-    /// * `Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>>` - (総レコード数, 総ゲーム数, 平均ゲーム数)
     pub fn get_database_stats(
         &self,
     ) -> Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>> {
@@ -849,9 +795,25 @@ impl Evaluator {
     }
 }
 
-/// Python用のラッパー関数
+impl Evaluator for NeuralEvaluator {
+    fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
+        let model_path = self.model_path.as_deref();
+        match self.evaluate_position(board, model_path) {
+            Ok((white_win_rate, black_win_rate, _draw_rate)) => match color {
+                ColorType::White => (white_win_rate - black_win_rate) * 10000.0,
+                ColorType::Black => (black_win_rate - white_win_rate) * 10000.0,
+                _ => 0.0,
+            },
+            Err(_) => {
+                let simple_eval = SimpleEvaluator::new();
+                simple_eval.evaluate(board, color)
+            }
+        }
+    }
+}
+
 #[pymethods]
-impl Evaluator {
+impl NeuralEvaluator {
     #[new]
     #[pyo3(signature = (db_type_str=None, connection_string=None, model_path=None))]
     pub fn new_for_python(
@@ -989,5 +951,10 @@ impl Evaluator {
     pub fn python_get_record_details(&self, record_id: i64) -> PyResult<Option<TrainingRecord>> {
         self.get_record_details(record_id)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "evaluate")]
+    pub fn python_evaluate(&self, board: &Board, color: ColorType) -> f32 {
+        self.evaluate(board, color)
     }
 }

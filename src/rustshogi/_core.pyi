@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from enum import Enum
 
 class Address:
@@ -128,7 +129,11 @@ class MctsResult:
 
     def merge(self, other: MctsResult) -> None: ...
 
-class Evaluator:
+class Evaluator(ABC):
+    @abstractmethod
+    def evaluate(self, board: Board, color: ColorType) -> float: ...
+
+class NeuralEvaluator(Evaluator):
     def __init__(
         self,
         db_type_str: str | None = None,
@@ -155,3 +160,33 @@ class Evaluator:
         self, board: Board, model_path: str | None = None
     ) -> tuple[float, float, float]: ...
     def get_database_stats(self) -> tuple[int, int, int]: ...
+    def evaluate(self, board: Board, color: ColorType) -> float: ...
+
+class SimpleEvaluator(Evaluator):
+    def __init__(self) -> None: ...
+    def evaluate(self, board: Board, color: ColorType) -> float: ...
+
+class EvaluationResult:
+    score: float
+    best_move: Move | None
+    nodes_searched: int
+
+class SearchStrategy(ABC):
+    pass
+
+class MinMaxSearchStrategy:
+    def __init__(self, max_nodes: int) -> None: ...
+
+class AlphaBetaSearchStrategy:
+    def __init__(self, max_nodes: int) -> None: ...
+
+class SearchEngine:
+    def __init__(
+        self,
+        algorithm: str = "minmax",
+        max_nodes: int = 1000000,
+        evaluator: Evaluator | None = None,
+    ) -> None: ...
+    def search(
+        self, board: Board, color: ColorType, depth: int
+    ) -> EvaluationResult: ...

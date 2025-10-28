@@ -10,7 +10,7 @@ pub mod color;
 pub mod common;
 #[path = "rustshogi/direction.rs"]
 pub mod direction;
-#[path = "rustshogi/evaluator.rs"]
+#[path = "rustshogi/evaluator/mod.rs"]
 pub mod evaluator;
 #[path = "rustshogi/game.rs"]
 pub mod game;
@@ -30,6 +30,8 @@ pub mod pca;
 pub mod piece;
 #[path = "rustshogi/random.rs"]
 pub mod random;
+#[path = "rustshogi/search/mod.rs"]
+pub mod search;
 
 #[cfg(test)]
 #[path = "rustshogi/test_address.rs"]
@@ -53,9 +55,6 @@ pub mod test_common;
 #[path = "rustshogi/test_direction.rs"]
 pub mod test_direction;
 #[cfg(test)]
-#[path = "rustshogi/test_evaluator.rs"]
-pub mod test_evaluator;
-#[cfg(test)]
 #[path = "rustshogi/test_game.rs"]
 pub mod test_game;
 #[cfg(test)]
@@ -64,6 +63,9 @@ pub mod test_hand;
 #[cfg(test)]
 #[path = "rustshogi/test_moves.rs"]
 pub mod test_moves;
+#[cfg(test)]
+#[path = "rustshogi/test_neural_evaluator.rs"]
+pub mod test_neural_evaluator;
 #[cfg(test)]
 #[path = "rustshogi/test_nn_model.rs"]
 pub mod test_nn_model;
@@ -76,6 +78,9 @@ pub mod test_piece;
 #[cfg(test)]
 #[path = "rustshogi/test_random.rs"]
 pub mod test_random;
+#[cfg(test)]
+#[path = "rustshogi/test_search.rs"]
+pub mod test_search;
 
 use pyo3::prelude::*;
 
@@ -90,6 +95,11 @@ fn rustshogi(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<board::Board>()?;
     m.add_class::<game::Game>()?;
     m.add_class::<mctsresult::MctsResult>()?;
-    m.add_class::<evaluator::Evaluator>()?;
+    m.add_class::<evaluator::neural::NeuralEvaluator>()?;
+    m.add_class::<evaluator::simple::SimpleEvaluator>()?;
+    m.add_class::<search::engine::SearchEngine>()?;
+    m.add_class::<search::search_strategy::EvaluationResult>()?;
+    m.add_class::<search::alphabeta::AlphaBetaSearchStrategy>()?;
+    m.add_class::<search::minmax::MinMaxSearchStrategy>()?;
     Ok(())
 }
