@@ -30,6 +30,8 @@ pub mod pca;
 pub mod piece;
 #[path = "rustshogi/random.rs"]
 pub mod random;
+#[path = "rustshogi/search.rs"]
+pub mod search;
 
 #[cfg(test)]
 #[path = "rustshogi/test_address.rs"]
@@ -76,6 +78,9 @@ pub mod test_piece;
 #[cfg(test)]
 #[path = "rustshogi/test_random.rs"]
 pub mod test_random;
+#[cfg(test)]
+#[path = "rustshogi/test_search.rs"]
+pub mod test_search;
 
 use pyo3::prelude::*;
 
@@ -91,5 +96,6 @@ fn rustshogi(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<game::Game>()?;
     m.add_class::<mctsresult::MctsResult>()?;
     m.add_class::<evaluator::Evaluator>()?;
+    m.add_class::<search::SearchEngine>()?;
     Ok(())
 }

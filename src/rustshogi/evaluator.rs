@@ -2,6 +2,7 @@ use super::board::Board;
 use super::color::ColorType;
 use super::game::Game;
 use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+use super::search::EvaluatorTrait;
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use burn::module::Module;
@@ -844,6 +845,34 @@ impl Evaluator {
 
                     Ok::<(i32, i32, i32), tokio_postgres::Error>((count as i32, total_games as i32, avg_games as i32))
                 }).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            }
+        }
+    }
+}
+
+/// Neural Network Evaluator - EvaluatorTrait を実装
+/// Evaluatorを探索エンジンで使用可能にする
+impl EvaluatorTrait for Evaluator {
+    fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
+        // モデルベースの評価を試みる
+        // モデルパスが設定されている場合はそれを使用、そうでない場合は構造体のフィールドを使用
+        let model_path = self.model_path.as_deref();
+
+        match self.evaluate_position(board, model_path) {
+            Ok((white_win_rate, black_win_rate, _draw_rate)) => {
+                // 指定された色の視点で評価値を計算
+                // 白の勝率から見た評価 = (white_win_rate - black_win_rate) * 10000
+
+                match color {
+                    ColorType::White => (white_win_rate - black_win_rate) * 10000.0,
+                    ColorType::Black => (black_win_rate - white_win_rate) * 10000.0,
+                    _ => 0.0,
+                }
+            }
+            Err(_) => {
+                // モデルがない場合は簡易評価を使用
+                let simple_eval = super::search::SimpleEvaluator::new();
+                simple_eval.evaluate(board, color)
             }
         }
     }
