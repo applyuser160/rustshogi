@@ -96,6 +96,10 @@ fn rustshogi(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<game::Game>()?;
     m.add_class::<mctsresult::MctsResult>()?;
     m.add_class::<evaluator::neural::NeuralEvaluator>()?;
+    m.add_class::<evaluator::simple::SimpleEvaluator>()?;
     m.add_class::<search::engine::SearchEngine>()?;
+    m.add_class::<search::search_strategy::EvaluationResult>()?;
+    m.add_class::<search::alphabeta::AlphaBetaSearch>()?;
+    m.add_class::<search::minmax::MinMaxSearch>()?;
     Ok(())
 }

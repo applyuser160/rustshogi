@@ -3,8 +3,10 @@ use super::super::color::{get_reverse_color, ColorType};
 use super::super::evaluator::abst::Evaluator;
 use super::search_strategy::EvaluationResult;
 use super::search_strategy::SearchStrategy;
+use pyo3::prelude::*;
 
 /// MinMax探索アルゴリズム
+#[pyclass]
 pub struct MinMaxSearch {
     max_nodes: u64,
 }
@@ -49,6 +51,14 @@ impl MinMaxSearch {
         }
 
         best_score
+    }
+}
+
+#[pymethods]
+impl MinMaxSearch {
+    #[new]
+    pub fn new_for_python(max_nodes: u64) -> Self {
+        Self::new(max_nodes)
     }
 }
 

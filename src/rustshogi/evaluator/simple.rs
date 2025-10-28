@@ -1,8 +1,10 @@
 use super::super::board::Board;
 use super::super::color::ColorType;
 use super::abst::Evaluator;
+use pyo3::prelude::*;
 
 /// 簡易評価関数（駒の価値のみを使用）
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct SimpleEvaluator {
     pub piece_values: std::collections::HashMap<super::super::piece::PieceType, f32>,
@@ -14,7 +16,9 @@ impl Default for SimpleEvaluator {
     }
 }
 
+#[pymethods]
 impl SimpleEvaluator {
+    #[new]
     pub fn new() -> Self {
         let mut piece_values = std::collections::HashMap::new();
         piece_values.insert(super::super::piece::PieceType::King, 10000.0);
@@ -33,6 +37,11 @@ impl SimpleEvaluator {
         piece_values.insert(super::super::piece::PieceType::ProPawn, 3.0);
 
         Self { piece_values }
+    }
+
+    #[pyo3(name = "evaluate")]
+    pub fn python_evaluate(&self, board: &Board, color: ColorType) -> f32 {
+        self.evaluate(board, color)
     }
 }
 

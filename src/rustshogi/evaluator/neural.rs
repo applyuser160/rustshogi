@@ -43,6 +43,7 @@ pub enum DatabaseType {
 
 /// ニューラルネットワーク評価関数システム
 #[pyclass]
+#[derive(Clone)]
 pub struct NeuralEvaluator {
     db_type: Option<DatabaseType>,
     model_path: Option<String>,
@@ -950,5 +951,10 @@ impl NeuralEvaluator {
     pub fn python_get_record_details(&self, record_id: i64) -> PyResult<Option<TrainingRecord>> {
         self.get_record_details(record_id)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "evaluate")]
+    pub fn python_evaluate(&self, board: &Board, color: ColorType) -> f32 {
+        self.evaluate(board, color)
     }
 }

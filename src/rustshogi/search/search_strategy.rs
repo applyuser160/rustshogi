@@ -1,12 +1,17 @@
 use super::super::board::Board;
 use super::super::color::ColorType;
 use super::super::evaluator::abst::Evaluator;
+use pyo3::prelude::*;
 
 /// 評価結果を表す構造体
 #[derive(Debug, Clone)]
+#[pyclass]
 pub struct EvaluationResult {
+    #[pyo3(get, set)]
     pub score: f32,
+    #[pyo3(get, set)]
     pub best_move: Option<super::super::moves::Move>,
+    #[pyo3(get, set)]
     pub nodes_searched: u64,
 }
 

@@ -3,10 +3,13 @@ use super::super::color::{get_reverse_color, ColorType};
 use super::super::evaluator::abst::Evaluator;
 use super::search_strategy::EvaluationResult;
 use super::search_strategy::SearchStrategy;
+use pyo3::prelude::*;
 
 /// AlphaBeta探索アルゴリズム
+#[pyclass]
 pub struct AlphaBetaSearch {
-    max_nodes: u64,
+    #[pyo3(get, set)]
+    pub max_nodes: u64,
 }
 
 impl AlphaBetaSearch {
@@ -60,6 +63,15 @@ impl AlphaBetaSearch {
         }
 
         best_score
+    }
+}
+
+#[pymethods]
+impl AlphaBetaSearch {
+    #[new]
+    #[pyo3(signature = (max_nodes=100))]
+    pub fn new_for_python(max_nodes: u64) -> Self {
+        Self::new(max_nodes)
     }
 }
 
