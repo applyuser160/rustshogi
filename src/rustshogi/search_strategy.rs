@@ -1,6 +1,6 @@
 use super::board::Board;
 use super::color::ColorType;
-use super::evaluator::trait_::Evaluator;
+use super::evaluator::abst::Evaluator;
 
 /// 評価結果を表す構造体
 #[derive(Debug, Clone)]

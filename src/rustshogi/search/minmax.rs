@@ -1,6 +1,6 @@
 use super::super::board::Board;
 use super::super::color::{get_reverse_color, ColorType};
-use super::super::evaluator::trait_::Evaluator;
+use super::super::evaluator::abst::Evaluator;
 use super::super::search_strategy::{EvaluationResult, SearchStrategy};
 
 /// MinMax探索アルゴリズム

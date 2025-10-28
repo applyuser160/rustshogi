@@ -1,6 +1,6 @@
 use super::super::board::Board;
 use super::super::color::ColorType;
-use super::trait_::Evaluator;
+use super::abst::Evaluator;
 
 /// 簡易評価関数（駒の価値のみを使用）
 #[derive(Debug, Clone)]

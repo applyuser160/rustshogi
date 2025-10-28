@@ -4,7 +4,7 @@ use super::evaluator::Evaluator;
 use super::evaluator::SimpleEvaluator;
 use super::search::SearchEngine;
 use super::search::{AlphaBetaSearch, MinMaxSearch};
-use super::search_strategy::{EvaluationResult, SearchStrategy};
+use super::search_strategy::SearchStrategy;
 use crate::address::Address;
 use crate::piece::PieceType;
 

@@ -1,5 +1,5 @@
 use super::board::Board;
-use super::evaluator::neural::{DatabaseType, NeuralEvaluator, TrainingRecord};
+use super::evaluator::neural::{DatabaseType, NeuralEvaluator};
 use super::game::Game;
 use super::nn_model::TrainingConfig;
 use std::fs;
