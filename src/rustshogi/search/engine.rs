@@ -2,9 +2,9 @@ use super::super::board::Board;
 use super::super::color::ColorType;
 use super::super::evaluator::Evaluator;
 use super::super::moves::Move;
-use super::super::search_strategy::{EvaluationResult, SearchStrategy};
 use super::alphabeta::AlphaBetaSearch;
 use super::minmax::MinMaxSearch;
+use super::search_strategy::{EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
 
 /// 探索エンジン

@@ -1,16 +1,12 @@
-use super::board::Board;
-use super::color::ColorType;
-use super::evaluator::Evaluator;
-use super::evaluator::SimpleEvaluator;
-use super::search::SearchEngine;
-use super::search::{AlphaBetaSearch, MinMaxSearch};
-use super::search_strategy::SearchStrategy;
-use crate::address::Address;
-use crate::piece::PieceType;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::address::Address;
+    use crate::board::Board;
+    use crate::color::ColorType;
+    use crate::evaluator::abst::Evaluator;
+    use crate::evaluator::simple::SimpleEvaluator;
+    use crate::piece::PieceType;
+    use crate::search::{AlphaBetaSearch, MinMaxSearch, SearchEngine, SearchStrategy};
 
     fn create_starting_board() -> Board {
         let mut board = Board::new();

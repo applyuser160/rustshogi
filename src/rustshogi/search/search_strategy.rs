@@ -1,12 +1,12 @@
-use super::board::Board;
-use super::color::ColorType;
-use super::evaluator::abst::Evaluator;
+use super::super::board::Board;
+use super::super::color::ColorType;
+use super::super::evaluator::abst::Evaluator;
 
 /// 評価結果を表す構造体
 #[derive(Debug, Clone)]
 pub struct EvaluationResult {
     pub score: f32,
-    pub best_move: Option<super::moves::Move>,
+    pub best_move: Option<super::super::moves::Move>,
     pub nodes_searched: u64,
 }
 

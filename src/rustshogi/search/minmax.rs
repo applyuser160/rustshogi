@@ -1,7 +1,8 @@
 use super::super::board::Board;
 use super::super::color::{get_reverse_color, ColorType};
 use super::super::evaluator::abst::Evaluator;
-use super::super::search_strategy::{EvaluationResult, SearchStrategy};
+use super::search_strategy::EvaluationResult;
+use super::search_strategy::SearchStrategy;
 
 /// MinMax探索アルゴリズム
 pub struct MinMaxSearch {
