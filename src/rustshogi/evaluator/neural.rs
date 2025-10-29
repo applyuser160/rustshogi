@@ -452,31 +452,17 @@ impl NeuralEvaluator {
             .ok_or("データベースタイプが設定されていません")?;
         let start_time = Instant::now();
         println!("モデルの訓練を開始します...");
-        let records = match db_type {
+
+        // まず総レコード数を取得
+        let total_count = match db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
-                let mut stmt = conn.prepare(
-                    "SELECT board, white_wins, black_wins, total_games
-                     FROM training_data
-                     WHERE total_games >= ?1
-                     ORDER BY total_games DESC",
+                let count: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM training_data WHERE total_games >= ?1",
+                    [min_games],
+                    |row| row.get(0),
                 )?;
-
-                let mut records: Vec<(String, i32, i32, i32)> = Vec::new();
-                let rows = stmt.query_map([min_games], |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, i32>(1)?,
-                        row.get::<_, i32>(2)?,
-                        row.get::<_, i32>(3)?,
-                    ))
-                })?;
-
-                for row_result in rows {
-                    let (board_sfen, white_wins, black_wins, total_games) = row_result?;
-                    records.push((board_sfen, white_wins, black_wins, total_games));
-                }
-                records
+                count as usize
             }
             DatabaseType::Postgres(connection_string) => {
                 let rt = tokio::runtime::Runtime::new().unwrap();
@@ -490,106 +476,287 @@ impl NeuralEvaluator {
                         }
                     });
 
-                    let rows = client
-                        .query(
-                            "SELECT board, white_wins, black_wins, total_games
-                         FROM training_data
-                         WHERE total_games >= $1
-                         ORDER BY total_games DESC",
+                    let row = client
+                        .query_one(
+                            "SELECT COUNT(*) FROM training_data WHERE total_games >= $1",
                             &[&min_games],
                         )
                         .await?;
-
-                    let mut records = Vec::new();
-                    for row in rows {
-                        let board: String = row.get(0);
-                        let white_wins: i32 = row.get(1);
-                        let black_wins: i32 = row.get(2);
-                        let total_games: i32 = row.get(3);
-                        records.push((board, white_wins, black_wins, total_games));
-                    }
-                    Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(records)
+                    let count: i64 = row.get(0);
+                    Ok::<usize, tokio_postgres::Error>(count as usize)
                 })?
             }
         };
 
-        let records = if let Some(max_samples) = max_samples {
-            if records.len() > max_samples {
+        let target_count = max_samples.unwrap_or(total_count).min(total_count);
+        println!("総レコード数: {} (使用: {})", total_count, target_count);
+
+        // バッチサイズ（メモリ効率化のため）
+        const BATCH_SIZE: usize = 10000;
+
+        let mut training_data = TrainingData::new();
+        training_data.inputs.reserve(target_count);
+        training_data.targets.reserve(target_count);
+
+        println!(
+            "バッチ処理でデータを読み込み中（バッチサイズ: {}）...",
+            BATCH_SIZE
+        );
+        let processing_start = Instant::now();
+        let mut processed_count = 0;
+        let mut offset = 0;
+        let mut sampled_indices = std::collections::HashSet::new();
+
+        // max_samplesが指定されている場合、サンプリング用のインデックスを事前に生成
+        if let Some(max_samples) = max_samples {
+            if total_count > max_samples {
                 println!(
                     "データをサンプリング中... ({}個から{}個に削減)",
-                    records.len(),
-                    max_samples
+                    total_count, max_samples
                 );
 
                 use rand::seq::SliceRandom;
                 use rand::thread_rng;
 
                 let mut rng = thread_rng();
-                let mut sampled_records = Vec::with_capacity(max_samples);
+                let mut all_weighted_indices: Vec<(usize, i32)> = Vec::new();
 
-                let mut weighted_indices: Vec<(usize, i32)> = records
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (_, _, _, total_games))| (i, *total_games))
-                    .collect();
+                // まず重み付きインデックスを生成（バッチ単位）
+                loop {
+                    let batch_records = match db_type {
+                        DatabaseType::Sqlite(db_path) => {
+                            let conn = rusqlite::Connection::open(db_path)?;
+                            let mut stmt = conn.prepare(
+                                "SELECT board, white_wins, black_wins, total_games
+                                 FROM training_data
+                                 WHERE total_games >= ?1
+                                 ORDER BY total_games DESC
+                                 LIMIT ?2 OFFSET ?3",
+                            )?;
 
+                            let mut batch: Vec<(String, i32, i32, i32)> = Vec::new();
+                            let limit_param = BATCH_SIZE as i32;
+                            let offset_param = offset as i32;
+                            let rows = stmt.query_map(
+                                rusqlite::params![min_games, limit_param, offset_param],
+                                |row| {
+                                    Ok((
+                                        row.get::<_, String>(0)?,
+                                        row.get::<_, i32>(1)?,
+                                        row.get::<_, i32>(2)?,
+                                        row.get::<_, i32>(3)?,
+                                    ))
+                                },
+                            )?;
+
+                            for row_result in rows {
+                                batch.push(row_result?);
+                            }
+                            batch
+                        }
+                        DatabaseType::Postgres(connection_string) => {
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            rt.block_on(async {
+                                let (client, connection) = tokio_postgres::connect(
+                                    connection_string,
+                                    tokio_postgres::NoTls,
+                                )
+                                .await?;
+
+                                tokio::spawn(async move {
+                                    if let Err(e) = connection.await {
+                                        eprintln!("PostgreSQL接続エラー: {}", e);
+                                    }
+                                });
+
+                                let rows = client
+                                    .query(
+                                        &format!(
+                                            "SELECT board, white_wins, black_wins, total_games
+                                             FROM training_data
+                                             WHERE total_games >= $1
+                                             ORDER BY total_games DESC
+                                             LIMIT {} OFFSET {}",
+                                            BATCH_SIZE, offset
+                                        ),
+                                        &[&min_games],
+                                    )
+                                    .await?;
+
+                                let mut batch = Vec::new();
+                                for row in rows {
+                                    let board: String = row.get(0);
+                                    let white_wins: i32 = row.get(1);
+                                    let black_wins: i32 = row.get(2);
+                                    let total_games: i32 = row.get(3);
+                                    batch.push((board, white_wins, black_wins, total_games));
+                                }
+                                Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(batch)
+                            })?
+                        }
+                    };
+
+                    if batch_records.is_empty() {
+                        break;
+                    }
+
+                    for (idx_in_batch, (_, _, _, total_games)) in batch_records.iter().enumerate() {
+                        all_weighted_indices.push((offset + idx_in_batch, *total_games));
+                    }
+
+                    offset += batch_records.len();
+                    if offset >= total_count {
+                        break;
+                    }
+                }
+
+                // 重み付きサンプリング
                 for _ in 0..max_samples {
-                    if let Ok(&(idx, _)) = weighted_indices.choose_weighted(&mut rng, |item| item.1)
+                    if let Ok(&(idx, _)) =
+                        all_weighted_indices.choose_weighted(&mut rng, |item| item.1)
                     {
-                        sampled_records.push(records[idx].clone());
-                        weighted_indices.retain(|(i, _)| *i != idx);
+                        sampled_indices.insert(idx);
+                        all_weighted_indices.retain(|(i, _)| *i != idx);
                     }
                 }
 
                 println!(
-                    "サンプリング完了: {}個のレコードを選択",
-                    sampled_records.len()
+                    "サンプリング完了: {}個のインデックスを選択",
+                    sampled_indices.len()
                 );
-                sampled_records
-            } else {
-                records
+                offset = 0; // リセット
             }
-        } else {
-            records
-        };
+        }
 
-        let mut training_data = TrainingData::new();
-        training_data.inputs.reserve(records.len());
-        training_data.targets.reserve(records.len());
+        // バッチ処理でデータを読み込み
+        loop {
+            let batch_records = match db_type {
+                DatabaseType::Sqlite(db_path) => {
+                    let conn = rusqlite::Connection::open(db_path)?;
+                    let mut stmt = conn.prepare(
+                        "SELECT board, white_wins, black_wins, total_games
+                         FROM training_data
+                         WHERE total_games >= ?1
+                         ORDER BY total_games DESC
+                         LIMIT ?2 OFFSET ?3",
+                    )?;
 
-        println!("{}個のレコードを処理中...", records.len());
-        let processing_start = Instant::now();
+                    let mut batch: Vec<(String, i32, i32, i32)> = Vec::new();
+                    let limit_param = BATCH_SIZE as i32;
+                    let offset_param = offset as i32;
+                    let rows = stmt.query_map(
+                        rusqlite::params![min_games, limit_param, offset_param],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, i32>(1)?,
+                                row.get::<_, i32>(2)?,
+                                row.get::<_, i32>(3)?,
+                            ))
+                        },
+                    )?;
 
-        for (i, (board_sfen, white_wins, black_wins, total_games)) in records.iter().enumerate() {
-            let board = Board::from_sfen(board_sfen.clone());
-            let board_vector = board.to_vector(None);
+                    for row_result in rows {
+                        batch.push(row_result?);
+                    }
+                    batch
+                }
+                DatabaseType::Postgres(connection_string) => {
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    rt.block_on(async {
+                        let (client, connection) =
+                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
+                                .await?;
 
-            let white_win_rate = if *total_games > 0 {
-                *white_wins as f32 / *total_games as f32
-            } else {
-                0.5
+                        tokio::spawn(async move {
+                            if let Err(e) = connection.await {
+                                eprintln!("PostgreSQL接続エラー: {}", e);
+                            }
+                        });
+
+                        let rows = client
+                            .query(
+                                &format!(
+                                    "SELECT board, white_wins, black_wins, total_games
+                                     FROM training_data
+                                     WHERE total_games >= $1
+                                     ORDER BY total_games DESC
+                                     LIMIT {} OFFSET {}",
+                                    BATCH_SIZE, offset
+                                ),
+                                &[&min_games],
+                            )
+                            .await?;
+
+                        let mut batch = Vec::new();
+                        for row in rows {
+                            let board: String = row.get(0);
+                            let white_wins: i32 = row.get(1);
+                            let black_wins: i32 = row.get(2);
+                            let total_games: i32 = row.get(3);
+                            batch.push((board, white_wins, black_wins, total_games));
+                        }
+                        Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(batch)
+                    })?
+                }
             };
-            let black_win_rate = if *total_games > 0 {
-                *black_wins as f32 / *total_games as f32
-            } else {
-                0.5
-            };
-            let draw_rate = if *total_games > 0 {
-                (*total_games - *white_wins - *black_wins) as f32 / *total_games as f32
-            } else {
-                0.0
-            };
 
-            let target = vec![white_win_rate, black_win_rate, draw_rate];
-            training_data.add_sample(board_vector, target);
+            if batch_records.is_empty() {
+                break;
+            }
 
-            if (i + 1) % 1000 == 0 {
+            // バッチ内の各レコードを処理
+            for (idx_in_batch, (board_sfen, white_wins, black_wins, total_games)) in
+                batch_records.iter().enumerate()
+            {
+                let global_idx = offset + idx_in_batch;
+
+                // max_samplesが指定されている場合、サンプリングされたインデックスのみ処理
+                if !sampled_indices.is_empty() && !sampled_indices.contains(&global_idx) {
+                    continue;
+                }
+
+                let board = Board::from_sfen(board_sfen.clone());
+                let board_vector = board.to_vector(None);
+
+                let white_win_rate = if *total_games > 0 {
+                    *white_wins as f32 / *total_games as f32
+                } else {
+                    0.5
+                };
+                let black_win_rate = if *total_games > 0 {
+                    *black_wins as f32 / *total_games as f32
+                } else {
+                    0.5
+                };
+                let draw_rate = if *total_games > 0 {
+                    (*total_games - *white_wins - *black_wins) as f32 / *total_games as f32
+                } else {
+                    0.0
+                };
+
+                let target = vec![white_win_rate, black_win_rate, draw_rate];
+                training_data.add_sample(board_vector, target);
+                processed_count += 1;
+
+                if processed_count >= target_count {
+                    break;
+                }
+            }
+
+            if processed_count >= target_count {
+                break;
+            }
+
+            offset += batch_records.len();
+
+            if processed_count % 1000 == 0 {
                 let elapsed = processing_start.elapsed();
                 println!(
                     "処理済み: {}/{} ({:.1}%) - 経過時間: {:.2}秒",
-                    i + 1,
-                    records.len(),
-                    (i + 1) as f64 / records.len() as f64 * 100.0,
+                    processed_count,
+                    target_count,
+                    processed_count as f64 / target_count as f64 * 100.0,
                     elapsed.as_secs_f64()
                 );
             }
