@@ -913,7 +913,7 @@ impl NeuralEvaluator {
     /// データベースの統計情報を取得
     pub fn get_database_stats(
         &self,
-    ) -> Result<(i32, i32, i32), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(i64, i64, i64), Box<dyn std::error::Error + Send + Sync>> {
         let db_type = self
             .db_type
             .as_ref()
@@ -927,9 +927,9 @@ impl NeuralEvaluator {
 
                 let result = stmt.query_row([], |row| {
                     Ok((
-                        row.get::<_, i32>(0)?,
-                        row.get::<_, i32>(1)?,
-                        row.get::<_, f64>(2)? as i32,
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, f64>(2)? as i64,
                     ))
                 })?;
 
@@ -955,7 +955,7 @@ impl NeuralEvaluator {
                     let total_games: i64 = row.get(1);
                     let avg_games: f64 = row.get(2);
 
-                    Ok::<(i32, i32, i32), tokio_postgres::Error>((count as i32, total_games as i32, avg_games as i32))
+                    Ok::<(i64, i64, i64), tokio_postgres::Error>((count, total_games, avg_games as i64))
                 }).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
             }
         }
@@ -1109,7 +1109,7 @@ impl NeuralEvaluator {
     }
 
     #[pyo3(name = "get_database_stats")]
-    pub fn python_get_database_stats(&self) -> PyResult<(i32, i32, i32)> {
+    pub fn python_get_database_stats(&self) -> PyResult<(i64, i64, i64)> {
         self.get_database_stats()
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
