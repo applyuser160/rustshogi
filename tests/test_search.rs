@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::address::Address;
-    use crate::board::Board;
-    use crate::color::ColorType;
-    use crate::evaluator::abst::Evaluator;
-    use crate::evaluator::simple::SimpleEvaluator;
-    use crate::piece::PieceType;
-    use crate::search::{
+    use rustshogi::address::Address;
+    use rustshogi::board::Board;
+    use rustshogi::color::ColorType;
+    use rustshogi::evaluator::abst::Evaluator;
+    use rustshogi::evaluator::simple::SimpleEvaluator;
+    use rustshogi::piece::PieceType;
+    use rustshogi::search::{
         AlphaBetaSearchStrategy, MinMaxSearchStrategy, SearchEngine, SearchStrategy,
     };
 
