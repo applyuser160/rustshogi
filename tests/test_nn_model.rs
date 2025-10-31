@@ -1,10 +1,10 @@
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 
-use crate::nn_model::NnModel;
+use rustshogi::nn_model::NnModel;
 
-use super::board::Board;
-use super::nn_model::{NnModelConfig, TrainingConfig, TrainingData};
+use rustshogi::board::Board;
+use rustshogi::nn_model::{NnModelConfig, TrainingConfig, TrainingData};
 
 #[test]
 fn test_nn_model_config() {
@@ -152,8 +152,8 @@ fn test_model_weights_access() {
 
 #[test]
 fn test_training_with_optimization() {
-    use super::board::Board;
-    use super::nn_model::{NnModelConfig, TrainingConfig, TrainingData};
+    use rustshogi::board::Board;
+    use rustshogi::nn_model::{NnModelConfig, TrainingConfig, TrainingData};
 
     // テスト用の学習データを作成
     let mut training_data = TrainingData::new();
@@ -200,8 +200,8 @@ fn test_training_with_optimization() {
 
 #[test]
 fn test_training_full_with_autodiff() {
-    use super::board::Board;
-    use super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+    use rustshogi::board::Board;
+    use rustshogi::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
 
     // テスト用の学習データを作成
     let mut training_data = TrainingData::new();
@@ -247,4 +247,3 @@ fn test_training_full_with_autodiff() {
     }
 
     println!("AutodiffBackend用の完全な学習テストが完了しました");
-}
