@@ -1,13 +1,17 @@
 use super::super::board::Board;
 use super::super::color::ColorType;
 use super::super::game::Game;
-use super::super::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+use super::super::nn_model::{NnModel, NnModelConfig, TrainingConfig};
 use super::abst::Evaluator;
 use super::simple::SimpleEvaluator;
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use burn::module::Module;
+use burn::optim::{AdamConfig, GradientsParams, Optimizer};
+use burn::prelude::*;
 use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder};
+use burn::tensor::backend::AutodiffBackend;
+use chrono;
 use pyo3::prelude::*;
 use rand;
 use serde::{Deserialize, Serialize};
@@ -438,7 +442,97 @@ impl NeuralEvaluator {
         Ok(updated_count)
     }
 
-    /// 学習データを取得してモデルを訓練
+    /// 損失関数（AutodiffBackend用）
+    fn mse_loss_autodiff<B: AutodiffBackend>(
+        predictions: &Tensor<B, 2>,
+        targets: &Tensor<B, 2>,
+    ) -> Tensor<B, 1> {
+        let diff = predictions.clone() - targets.clone();
+        let squared_diff = diff.clone() * diff;
+        squared_diff.mean()
+    }
+
+    /// データベースからバッチ単位でデータを取得するヘルパー関数
+    fn fetch_batch_from_db(
+        &self,
+        db_type: &DatabaseType,
+        min_games: i32,
+        batch_size: usize,
+        offset: usize,
+    ) -> Result<Vec<(String, i32, i32, i32)>, Box<dyn std::error::Error + Send + Sync>> {
+        match db_type {
+            DatabaseType::Sqlite(db_path) => {
+                let conn = rusqlite::Connection::open(db_path)?;
+                let mut stmt = conn.prepare(
+                    "SELECT board, white_wins, black_wins, total_games
+                     FROM training_data
+                     WHERE total_games >= ?1
+                     ORDER BY total_games DESC
+                     LIMIT ?2 OFFSET ?3",
+                )?;
+
+                let mut batch: Vec<(String, i32, i32, i32)> = Vec::new();
+                let limit_param = batch_size as i32;
+                let offset_param = offset as i32;
+                let rows = stmt.query_map(
+                    rusqlite::params![min_games, limit_param, offset_param],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, i32>(1)?,
+                            row.get::<_, i32>(2)?,
+                            row.get::<_, i32>(3)?,
+                        ))
+                    },
+                )?;
+
+                for row_result in rows {
+                    batch.push(row_result?);
+                }
+                Ok(batch)
+            }
+            DatabaseType::Postgres(connection_string) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let (client, connection) =
+                        tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
+
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.await {
+                            eprintln!("PostgreSQL接続エラー: {}", e);
+                        }
+                    });
+
+                    let rows = client
+                        .query(
+                            &format!(
+                                "SELECT board, white_wins, black_wins, total_games
+                                 FROM training_data
+                                 WHERE total_games >= $1
+                                 ORDER BY total_games DESC
+                                 LIMIT {} OFFSET {}",
+                                batch_size, offset
+                            ),
+                            &[&min_games],
+                        )
+                        .await?;
+
+                    let mut batch = Vec::new();
+                    for row in rows {
+                        let board: String = row.get(0);
+                        let white_wins: i32 = row.get(1);
+                        let black_wins: i32 = row.get(2);
+                        let total_games: i32 = row.get(3);
+                        batch.push((board, white_wins, black_wins, total_games));
+                    }
+                    Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(batch)
+                })
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            }
+        }
+    }
+
+    /// 学習データを取得してモデルを訓練（ストリーミング処理で全データを使用）
     pub fn train_model(
         &self,
         min_games: i32,
@@ -488,291 +582,21 @@ impl NeuralEvaluator {
             }
         };
 
+        // max_samplesが指定されていない場合は全データを使用（ストリーミング処理でメモリ効率的）
         let target_count = max_samples.unwrap_or(total_count).min(total_count);
-        println!("総レコード数: {} (使用: {})", total_count, target_count);
-
-        // バッチサイズ（メモリ効率化のため）- メモリ使用量を1/3に削減
-        const BATCH_SIZE: usize = 3333;
-
-        let mut training_data = TrainingData::new();
-        // メモリ使用量を1/3に削減するため、事前確保サイズを減らす
-        training_data.inputs.reserve(target_count / 3);
-        training_data.targets.reserve(target_count / 3);
-
         println!(
-            "バッチ処理でデータを読み込み中（バッチサイズ: {}）...",
-            BATCH_SIZE
+            "総レコード数: {} (使用: {} - ストリーミング処理で全データを使用)",
+            total_count, target_count
         );
-        let processing_start = Instant::now();
-        let mut processed_count = 0;
-        let mut offset = 0;
-        let mut sampled_indices = std::collections::HashSet::new();
 
-        // max_samplesが指定されている場合、サンプリング用のインデックスを事前に生成
-        if let Some(max_samples) = max_samples {
-            if total_count > max_samples {
-                println!(
-                    "データをサンプリング中... ({}個から{}個に削減)",
-                    total_count, max_samples
-                );
+        // データベースからの読み込みバッチサイズ（メモリ効率化）
+        const DB_FETCH_BATCH_SIZE: usize = 1000;
 
-                use rand::seq::SliceRandom;
-                use rand::thread_rng;
-
-                let mut rng = thread_rng();
-                let mut all_weighted_indices: Vec<(usize, i32)> = Vec::new();
-
-                // まず重み付きインデックスを生成（バッチ単位）
-                loop {
-                    let batch_records = match db_type {
-                        DatabaseType::Sqlite(db_path) => {
-                            let conn = rusqlite::Connection::open(db_path)?;
-                            let mut stmt = conn.prepare(
-                                "SELECT board, white_wins, black_wins, total_games
-                                 FROM training_data
-                                 WHERE total_games >= ?1
-                                 ORDER BY total_games DESC
-                                 LIMIT ?2 OFFSET ?3",
-                            )?;
-
-                            let mut batch: Vec<(String, i32, i32, i32)> = Vec::new();
-                            let limit_param = BATCH_SIZE as i32;
-                            let offset_param = offset as i32;
-                            let rows = stmt.query_map(
-                                rusqlite::params![min_games, limit_param, offset_param],
-                                |row| {
-                                    Ok((
-                                        row.get::<_, String>(0)?,
-                                        row.get::<_, i32>(1)?,
-                                        row.get::<_, i32>(2)?,
-                                        row.get::<_, i32>(3)?,
-                                    ))
-                                },
-                            )?;
-
-                            for row_result in rows {
-                                batch.push(row_result?);
-                            }
-                            batch
-                        }
-                        DatabaseType::Postgres(connection_string) => {
-                            let rt = tokio::runtime::Runtime::new().unwrap();
-                            rt.block_on(async {
-                                let (client, connection) = tokio_postgres::connect(
-                                    connection_string,
-                                    tokio_postgres::NoTls,
-                                )
-                                .await?;
-
-                                tokio::spawn(async move {
-                                    if let Err(e) = connection.await {
-                                        eprintln!("PostgreSQL接続エラー: {}", e);
-                                    }
-                                });
-
-                                let rows = client
-                                    .query(
-                                        &format!(
-                                            "SELECT board, white_wins, black_wins, total_games
-                                             FROM training_data
-                                             WHERE total_games >= $1
-                                             ORDER BY total_games DESC
-                                             LIMIT {} OFFSET {}",
-                                            BATCH_SIZE, offset
-                                        ),
-                                        &[&min_games],
-                                    )
-                                    .await?;
-
-                                let mut batch = Vec::new();
-                                for row in rows {
-                                    let board: String = row.get(0);
-                                    let white_wins: i32 = row.get(1);
-                                    let black_wins: i32 = row.get(2);
-                                    let total_games: i32 = row.get(3);
-                                    batch.push((board, white_wins, black_wins, total_games));
-                                }
-                                Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(batch)
-                            })?
-                        }
-                    };
-
-                    if batch_records.is_empty() {
-                        break;
-                    }
-
-                    for (idx_in_batch, (_, _, _, total_games)) in batch_records.iter().enumerate() {
-                        all_weighted_indices.push((offset + idx_in_batch, *total_games));
-                    }
-
-                    offset += batch_records.len();
-                    if offset >= total_count {
-                        break;
-                    }
-                }
-
-                // 重み付きサンプリング
-                for _ in 0..max_samples {
-                    if let Ok(&(idx, _)) =
-                        all_weighted_indices.choose_weighted(&mut rng, |item| item.1)
-                    {
-                        sampled_indices.insert(idx);
-                        all_weighted_indices.retain(|(i, _)| *i != idx);
-                    }
-                }
-
-                println!(
-                    "サンプリング完了: {}個のインデックスを選択",
-                    sampled_indices.len()
-                );
-                offset = 0; // リセット
-            }
-        }
-
-        // バッチ処理でデータを読み込み
-        loop {
-            let batch_records = match db_type {
-                DatabaseType::Sqlite(db_path) => {
-                    let conn = rusqlite::Connection::open(db_path)?;
-                    let mut stmt = conn.prepare(
-                        "SELECT board, white_wins, black_wins, total_games
-                         FROM training_data
-                         WHERE total_games >= ?1
-                         ORDER BY total_games DESC
-                         LIMIT ?2 OFFSET ?3",
-                    )?;
-
-                    let mut batch: Vec<(String, i32, i32, i32)> = Vec::new();
-                    let limit_param = BATCH_SIZE as i32;
-                    let offset_param = offset as i32;
-                    let rows = stmt.query_map(
-                        rusqlite::params![min_games, limit_param, offset_param],
-                        |row| {
-                            Ok((
-                                row.get::<_, String>(0)?,
-                                row.get::<_, i32>(1)?,
-                                row.get::<_, i32>(2)?,
-                                row.get::<_, i32>(3)?,
-                            ))
-                        },
-                    )?;
-
-                    for row_result in rows {
-                        batch.push(row_result?);
-                    }
-                    batch
-                }
-                DatabaseType::Postgres(connection_string) => {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let (client, connection) =
-                            tokio_postgres::connect(connection_string, tokio_postgres::NoTls)
-                                .await?;
-
-                        tokio::spawn(async move {
-                            if let Err(e) = connection.await {
-                                eprintln!("PostgreSQL接続エラー: {}", e);
-                            }
-                        });
-
-                        let rows = client
-                            .query(
-                                &format!(
-                                    "SELECT board, white_wins, black_wins, total_games
-                                     FROM training_data
-                                     WHERE total_games >= $1
-                                     ORDER BY total_games DESC
-                                     LIMIT {} OFFSET {}",
-                                    BATCH_SIZE, offset
-                                ),
-                                &[&min_games],
-                            )
-                            .await?;
-
-                        let mut batch = Vec::new();
-                        for row in rows {
-                            let board: String = row.get(0);
-                            let white_wins: i32 = row.get(1);
-                            let black_wins: i32 = row.get(2);
-                            let total_games: i32 = row.get(3);
-                            batch.push((board, white_wins, black_wins, total_games));
-                        }
-                        Ok::<Vec<(String, i32, i32, i32)>, tokio_postgres::Error>(batch)
-                    })?
-                }
-            };
-
-            if batch_records.is_empty() {
-                break;
-            }
-
-            // バッチ内の各レコードを処理
-            for (idx_in_batch, (board_sfen, white_wins, black_wins, total_games)) in
-                batch_records.iter().enumerate()
-            {
-                let global_idx = offset + idx_in_batch;
-
-                // max_samplesが指定されている場合、サンプリングされたインデックスのみ処理
-                if !sampled_indices.is_empty() && !sampled_indices.contains(&global_idx) {
-                    continue;
-                }
-
-                let board = Board::from_sfen(board_sfen.clone());
-                let board_vector = board.to_vector(None);
-
-                let white_win_rate = if *total_games > 0 {
-                    *white_wins as f32 / *total_games as f32
-                } else {
-                    0.5
-                };
-                let black_win_rate = if *total_games > 0 {
-                    *black_wins as f32 / *total_games as f32
-                } else {
-                    0.5
-                };
-                let draw_rate = if *total_games > 0 {
-                    (*total_games - *white_wins - *black_wins) as f32 / *total_games as f32
-                } else {
-                    0.0
-                };
-
-                let target = vec![white_win_rate, black_win_rate, draw_rate];
-                training_data.add_sample(board_vector, target);
-                processed_count += 1;
-
-                if processed_count >= target_count {
-                    break;
-                }
-            }
-
-            if processed_count >= target_count {
-                break;
-            }
-
-            offset += batch_records.len();
-
-            if processed_count % 1000 == 0 {
-                let elapsed = processing_start.elapsed();
-                println!(
-                    "処理済み: {}/{} ({:.1}%) - 経過時間: {:.2}秒",
-                    processed_count,
-                    target_count,
-                    processed_count as f64 / target_count as f64 * 100.0,
-                    elapsed.as_secs_f64()
-                );
-            }
-        }
-
-        if training_data.is_empty() {
-            return Err("学習データが見つかりません".into());
-        }
-
-        println!("{}個の学習データを取得しました", training_data.len());
-
+        // ストリーミング処理用: モデルとオプティマイザーを初期化
         let device = NdArrayDevice::default();
         let model_config = NnModelConfig::default();
 
-        let model: NnModel<Autodiff<NdArray>>;
+        let mut model: NnModel<Autodiff<NdArray>>;
         if Path::new(&model_save_path).exists() {
             let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
             model = NnModel::new(&model_config, &device).load_file(
@@ -784,25 +608,220 @@ impl NeuralEvaluator {
             model = NnModel::new(&model_config, &device);
         }
 
-        match model.train(&training_data, &training_config, &device) {
-            Ok(trained_model) => {
-                let training_elapsed = start_time.elapsed();
-                println!(
-                    "モデルの訓練が完了しました (訓練時間: {:.2}秒)",
-                    training_elapsed.as_secs_f64()
-                );
+        let optim_config = AdamConfig::new();
+        let mut optim = optim_config.init();
 
-                let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+        // 学習パラメータ
+        let input_dim = 2320;
+        let output_dim = 3;
+        let batch_size = training_config.batch_size;
 
-                if let Err(e) = trained_model.clone().save_file(&model_save_path, &recorder) {
-                    eprintln!("モデルの保存に失敗しました: {}", e);
-                } else {
-                    println!("モデルを保存しました: {}", &model_save_path);
+        println!("ストリーミング処理で学習を開始します（全データを使用）...");
+        println!(
+            "エポック数: {}, バッチサイズ: {}",
+            training_config.num_epochs, batch_size
+        );
+
+        // 早期停止用の変数
+        let mut best_loss = f32::INFINITY;
+        let mut patience_counter = 0;
+
+        // エポックごとの学習ループ
+        for epoch in 0..training_config.num_epochs {
+            let epoch_start_time = Instant::now();
+            let mut total_loss = 0.0;
+            let mut batch_count = 0;
+
+            // 学習率スケジューリング
+            let current_lr = if training_config.use_lr_scheduling {
+                training_config.learning_rate * (0.95_f64.powi(epoch as i32))
+            } else {
+                training_config.learning_rate
+            };
+
+            println!(
+                "エポック {} 開始: データベースからストリーミング読み込み...",
+                epoch
+            );
+
+            // データベースからストリーミング読み込み
+            let mut db_offset = 0;
+            let mut processed_samples = 0;
+            let progress_update_interval = 1000; // 1000サンプルごとに進捗表示
+
+            loop {
+                // データベースからバッチを取得
+                let batch_records =
+                    self.fetch_batch_from_db(db_type, min_games, DB_FETCH_BATCH_SIZE, db_offset)?;
+
+                if batch_records.is_empty() {
+                    break;
+                }
+
+                // バッチ内のデータを処理して学習バッチを作成
+                let mut batch_inputs = Vec::new();
+                let mut batch_targets = Vec::new();
+
+                for (board_sfen, white_wins, black_wins, total_games) in batch_records {
+                    let board = Board::from_sfen(board_sfen);
+                    let board_vector = board.to_vector(None);
+
+                    let white_win_rate = if total_games > 0 {
+                        white_wins as f32 / total_games as f32
+                    } else {
+                        0.5
+                    };
+                    let black_win_rate = if total_games > 0 {
+                        black_wins as f32 / total_games as f32
+                    } else {
+                        0.5
+                    };
+                    let draw_rate = if total_games > 0 {
+                        (total_games - white_wins - black_wins) as f32 / total_games as f32
+                    } else {
+                        0.0
+                    };
+
+                    batch_inputs.push(board_vector);
+                    batch_targets.push(vec![white_win_rate, black_win_rate, draw_rate]);
+                }
+
+                // 学習バッチサイズで分割して処理
+                for batch_start in (0..batch_inputs.len()).step_by(batch_size) {
+                    let batch_end = (batch_start + batch_size).min(batch_inputs.len());
+                    let current_batch_size = batch_end - batch_start;
+
+                    // バッチデータを準備
+                    let mut flat_inputs = Vec::with_capacity(current_batch_size * input_dim);
+                    let mut flat_targets = Vec::with_capacity(current_batch_size * output_dim);
+
+                    for i in batch_start..batch_end {
+                        flat_inputs.extend_from_slice(&batch_inputs[i]);
+                        flat_targets.extend_from_slice(&batch_targets[i]);
+                    }
+
+                    // テンソルに変換
+                    let batch_input_tensor = Tensor::<Autodiff<NdArray>, 1>::from_floats(
+                        flat_inputs.as_slice(),
+                        &device,
+                    )
+                    .reshape([current_batch_size, input_dim]);
+
+                    let batch_target_tensor = Tensor::<Autodiff<NdArray>, 1>::from_floats(
+                        flat_targets.as_slice(),
+                        &device,
+                    )
+                    .reshape([current_batch_size, output_dim]);
+
+                    // フォワードパス
+                    let predictions = model.forward(batch_input_tensor);
+
+                    // 損失計算
+                    let loss = Self::mse_loss_autodiff(&predictions, &batch_target_tensor);
+                    let loss_value: f32 = loss.clone().into_scalar();
+                    total_loss += loss_value;
+
+                    // バックプロパゲーション
+                    let grads = loss.backward();
+                    let grads_params = GradientsParams::from_grads(grads, &model);
+                    model = optim.step(current_lr, model, grads_params);
+
+                    batch_count += 1;
+                    processed_samples += current_batch_size;
+
+                    // 進捗表示（一定間隔ごと、または最後のバッチ）
+                    if processed_samples % progress_update_interval == 0
+                        || processed_samples >= target_count
+                        || (db_offset + DB_FETCH_BATCH_SIZE >= target_count
+                            && batch_start + batch_size >= batch_inputs.len())
+                    {
+                        let progress_percent =
+                            (processed_samples as f64 / target_count as f64) * 100.0;
+                        let elapsed = epoch_start_time.elapsed();
+                        let elapsed_secs = elapsed.as_secs_f64();
+
+                        // 残り時間の計算
+                        let remaining_samples = target_count - processed_samples;
+                        let samples_per_sec = if elapsed_secs > 0.0 {
+                            processed_samples as f64 / elapsed_secs
+                        } else {
+                            0.0
+                        };
+                        let estimated_remaining_secs = if samples_per_sec > 0.0 {
+                            remaining_samples as f64 / samples_per_sec
+                        } else {
+                            0.0
+                        };
+                        let estimated_remaining_mins = estimated_remaining_secs / 60.0;
+
+                        // 現在時刻から予想終了時刻を計算
+                        let now = std::time::SystemTime::now();
+                        let estimated_end =
+                            now + std::time::Duration::from_secs(estimated_remaining_secs as u64);
+                        let end_time_str = chrono::DateTime::<chrono::Local>::from(estimated_end)
+                            .format("%H:%M:%S")
+                            .to_string();
+
+                        println!(
+                            "  進捗: {}/{} ({:.1}%) - 経過: {:.1}秒 - 速度: {:.0} サンプル/秒 - 残り: {:.1}分 (予想終了: {})",
+                            processed_samples,
+                            target_count,
+                            progress_percent,
+                            elapsed_secs,
+                            samples_per_sec,
+                            estimated_remaining_mins,
+                            end_time_str
+                        );
+                    }
+
+                    // メモリ解放
+                    drop(flat_inputs);
+                    drop(flat_targets);
+                }
+
+                db_offset += DB_FETCH_BATCH_SIZE;
+
+                if db_offset >= target_count {
+                    break;
                 }
             }
-            Err(e) => {
-                return Err(format!("モデルの訓練に失敗しました: {}", e).into());
+
+            let avg_loss = total_loss / batch_count as f32;
+            let epoch_elapsed = epoch_start_time.elapsed();
+            println!(
+                "エポック {} 完了: 平均損失 = {:.6}, バッチ数 = {}, 経過時間 = {:.2}秒",
+                epoch,
+                avg_loss,
+                batch_count,
+                epoch_elapsed.as_secs_f64()
+            );
+
+            // 早期停止チェック
+            if training_config.use_early_stopping {
+                if avg_loss < best_loss {
+                    best_loss = avg_loss;
+                    patience_counter = 0;
+                } else {
+                    patience_counter += 1;
+                    if patience_counter >= training_config.early_stopping_patience {
+                        println!(
+                            "早期停止: エポック {} で学習を終了します（損失改善なし）",
+                            epoch
+                        );
+                        break;
+                    }
+                }
             }
+        }
+
+        println!("学習が完了しました");
+
+        // モデルを保存
+        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+        if let Err(e) = model.save_file(&model_save_path, &recorder) {
+            eprintln!("モデルの保存に失敗しました: {}", e);
+        } else {
+            println!("モデルを保存しました: {}", &model_save_path);
         }
 
         let total_elapsed = start_time.elapsed();
