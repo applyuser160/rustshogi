@@ -15,6 +15,7 @@ use chrono;
 use pyo3::prelude::*;
 use rand;
 use serde::{Deserialize, Serialize};
+use std::io::{self, Write};
 use std::path::Path;
 use std::time::Instant;
 
@@ -762,8 +763,9 @@ impl NeuralEvaluator {
                             .format("%H:%M:%S")
                             .to_string();
 
-                        println!(
-                            "  進捗: {}/{} ({:.1}%) - 経過: {:.1}秒 - 速度: {:.0} サンプル/秒 - 残り: {:.1}分 (予想終了: {})",
+                        // 同じ行を上書きするために\rを使う
+                        print!(
+                            "\r  進捗: {}/{} ({:.1}%) - 経過: {:.1}秒 - 速度: {:.0} サンプル/秒 - 残り: {:.1}分 (予想終了: {})    ",
                             processed_samples,
                             target_count,
                             progress_percent,
@@ -772,6 +774,7 @@ impl NeuralEvaluator {
                             estimated_remaining_mins,
                             end_time_str
                         );
+                        io::stdout().flush().unwrap();
                     }
 
                     // メモリ解放
@@ -785,6 +788,9 @@ impl NeuralEvaluator {
                     break;
                 }
             }
+
+            // 進捗表示の最後の行をクリア（改行を追加）
+            println!();
 
             let avg_loss = total_loss / batch_count as f32;
             let epoch_elapsed = epoch_start_time.elapsed();
