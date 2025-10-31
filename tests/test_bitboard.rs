@@ -1,4 +1,4 @@
-use rustshogi::bitboard::{generate_column, generate_columns, BitBoard};
+use rustshogi::bitboard::{generate_column, BitBoard};
 
 #[test]
 fn test_bitboard_new() {
@@ -39,16 +39,22 @@ fn test_bitboard_to_u128() {
 }
 
 #[test]
-fn test_bitboard_set_true() {
+fn test_bitboard_set_bit() {
     let mut bitboard = BitBoard::new();
-    bitboard.set_true(89);
+    // set_true相当: ビットを設定するために直接ビット演算を使用
+    let bit_mask = BitBoard::from_u128(1u128 << (127 - 89));
+    bitboard |= bit_mask;
     assert_eq!((bitboard.to_u128() >> (127 - 89)) & 1, 1);
 }
 
 #[test]
-fn test_bitboard_set_false() {
+fn test_bitboard_unset_bit() {
     let mut bitboard = BitBoard::from_u128(548949983232);
-    bitboard.set_false(89);
+    // set_false相当: ビットをクリアするために直接ビット演算を使用
+    let bit_mask = BitBoard::from_u128(1u128 << (127 - 89));
+    let all_bits = BitBoard::from_u128(u128::MAX);
+    let not_mask = all_bits ^ bit_mask;
+    bitboard &= not_mask;
     assert_eq!((bitboard.to_u128() >> (127 - 89)) & 1, 0);
 }
 
@@ -65,7 +71,7 @@ fn test_bitboard_get_trues() {
 fn test_bitboard_and() {
     let bitboard1 = BitBoard::from_u128(548949983232);
     let bitboard2 = BitBoard::from_u128(1097899966464);
-    let result = bitboard1.and(&bitboard2);
+    let result = bitboard1 & bitboard2;
     assert_eq!(result.to_u128(), 548949983232);
 }
 
@@ -73,7 +79,7 @@ fn test_bitboard_and() {
 fn test_bitboard_or() {
     let bitboard1 = BitBoard::from_u128(548949983232);
     let bitboard2 = BitBoard::from_u128(1097899966464);
-    let result = bitboard1.or(&bitboard2);
+    let result = bitboard1 | bitboard2;
     assert_eq!(result.to_u128(), 1646849949696);
 }
 
@@ -81,22 +87,14 @@ fn test_bitboard_or() {
 fn test_bitboard_xor() {
     let bitboard1 = BitBoard::from_u128(548949983232);
     let bitboard2 = BitBoard::from_u128(1097899966464);
-    let result = bitboard1.xor(&bitboard2);
+    let result = bitboard1 ^ bitboard2;
     assert_eq!(result.to_u128(), 1097899966464);
-}
-
-#[test]
-fn test_bitboard_not() {
-    let bitboard = BitBoard::from_u128(548949983232);
-    let result = bitboard.not();
-    assert_eq!((result.to_u128() >> (127 - 89)) & 1, 0);
-    assert_eq!((result.to_u128() >> (127 - 90)) & 1, 0);
 }
 
 #[test]
 fn test_bitboard_shift() {
     let bitboard = BitBoard::from_u128(548949983232);
-    let result = bitboard.shift(1);
+    let result = bitboard >> 1;
     assert_eq!((result.to_u128() >> (127 - 88)) & 1, 1);
     assert_eq!((result.to_u128() >> (127 - 89)) & 1, 1);
 }
@@ -108,12 +106,4 @@ fn test_bitboard_generate_column() {
     assert_eq!(trues.len(), 11);
     assert_eq!(trues[0], 5);
     assert_eq!(trues[10], 115);
-}
-
-#[test]
-fn test_bitboard_generate_columns() {
-    let columns = generate_columns();
-    assert_eq!(columns.len(), 11);
-    let column5_trues = columns[5].get_trues();
-    assert_eq!(column5_trues.len(), 11);
 }
