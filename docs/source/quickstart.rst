@@ -126,3 +126,47 @@
        print("-" * 40)
 
    print("対局終了")
+
+評価関数の使用
+==============
+
+rustshogiは、局面を評価するための評価関数を提供します。最も基本的な評価関数はSimpleEvaluatorです：
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, SimpleEvaluator
+
+   board = Board("startpos")
+   evaluator = SimpleEvaluator()
+
+   # 先手の視点で局面を評価
+   score = evaluator.evaluate(board, ColorType.Black)
+   print(f"先手の評価値: {score}")
+
+探索エンジンの使用
+================
+
+探索エンジンを使用すると、最善手を自動的に見つけることができます：
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, SearchEngine
+
+   board = Board("startpos")
+   
+   # 探索エンジンを作成（デフォルトはMinMax探索）
+   engine = SearchEngine()
+
+   # 深度3で探索を実行
+   result = engine.search(board, ColorType.Black, depth=3)
+   
+   print(f"評価値: {result.score}")
+   print(f"最善手: {result.best_move}")
+   print(f"探索ノード数: {result.nodes_searched}")
+
+   # 最善手を実行
+   if result.best_move:
+       board.execute_move(result.best_move)
+       print(f"実行した手: {result.best_move}")
+
+詳細については、:doc:`examples` を参照してください。
