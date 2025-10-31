@@ -1,12 +1,15 @@
-use super::board::Board;
-use super::pca::{learn_simple_pca, set_global_pca_transform};
+use rustshogi::bitboard::BitBoard;
+use rustshogi::board::Board;
+use rustshogi::color::ColorType;
+use rustshogi::pca::{learn_simple_pca, set_global_pca_transform};
+use rustshogi::piece::PieceType;
 
 #[test]
 fn test_board_new() {
     let board = Board::new();
-    assert_eq!(board.has_piece, super::bitboard::BitBoard::new());
-    assert_eq!(board.player_prossesion[0], super::bitboard::BitBoard::new());
-    assert_eq!(board.player_prossesion[1], super::bitboard::BitBoard::new());
+    assert_eq!(board.has_piece, BitBoard::new());
+    assert_eq!(board.player_prossesion[0], BitBoard::new());
+    assert_eq!(board.player_prossesion[1], BitBoard::new());
 }
 
 #[test]
@@ -45,34 +48,26 @@ fn test_board_startpos() {
     board.startpos();
 
     // 開始局面では駒が配置されているはず
-    assert_ne!(board.has_piece, super::bitboard::BitBoard::new());
+    assert_ne!(board.has_piece, BitBoard::new());
 }
 
 #[test]
 fn test_board_deploy() {
     let mut board = Board::new();
-    board.deploy(
-        0,
-        super::piece::PieceType::King,
-        super::color::ColorType::Black,
-    );
+    board.deploy(0, PieceType::King, ColorType::Black);
 
     // 駒が配置されているはず
-    assert_ne!(board.has_piece, super::bitboard::BitBoard::new());
+    assert_ne!(board.has_piece, BitBoard::new());
 }
 
 #[test]
 fn test_board_get_piece() {
     let mut board = Board::new();
-    board.deploy(
-        0,
-        super::piece::PieceType::King,
-        super::color::ColorType::Black,
-    );
+    board.deploy(0, PieceType::King, ColorType::Black);
 
     let piece = board.get_piece(0);
-    assert_eq!(piece.piece_type, super::piece::PieceType::King);
-    assert_eq!(piece.owner, super::color::ColorType::Black);
+    assert_eq!(piece.piece_type, PieceType::King);
+    assert_eq!(piece.owner, ColorType::Black);
 }
 
 #[test]
@@ -83,5 +78,5 @@ fn test_board_is_finished() {
 
     // 開始局面では終了していない
     assert!(!is_finished);
-    assert_eq!(winner, super::color::ColorType::None);
+    assert_eq!(winner, ColorType::None);
 }

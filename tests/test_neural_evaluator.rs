@@ -1,7 +1,10 @@
-use super::board::Board;
-use super::evaluator::neural::{DatabaseType, NeuralEvaluator};
-use super::game::Game;
-use super::nn_model::TrainingConfig;
+use rustshogi::address::Address;
+use rustshogi::board::Board;
+use rustshogi::color::ColorType;
+use rustshogi::evaluator::neural::{DatabaseType, NeuralEvaluator};
+use rustshogi::game::Game;
+use rustshogi::nn_model::TrainingConfig;
+use rustshogi::piece::PieceType;
 use std::fs;
 
 #[test]
@@ -325,9 +328,7 @@ fn test_generate_random_board_hand_consistency() {
     // 持ち駒の整合性を確認
     let hand = &random_board.hand;
 
-    // 全ての駒種について持ち駒の数を確認
-    use super::color::ColorType;
-    use super::piece::PieceType;
+    // 全ての駒種について持ち駒の数を確認use rustshogi::color::ColorType;use rustshogi::piece::PieceType;
 
     let mut total_hand_pieces = 0;
 
@@ -428,8 +429,7 @@ fn test_generate_random_board_promoted_pieces() {
                 sfen
             );
 
-            // 個別の駒の表示も確認
-            use super::address::Address;
+            // 個別の駒の表示も確認use rustshogi::address::Address;
 
             // 盤面の各マスをチェックして成った駒を確認
             for row in 1..=9 {
@@ -466,10 +466,7 @@ fn test_generate_random_board_promoted_pieces() {
         let mut manual_game = Game::new();
         manual_game.input_board("startpos".to_string());
 
-        // 手動で成った駒を配置
-        use super::address::Address;
-        use super::color::ColorType;
-        use super::piece::PieceType;
+        // 手動で成った駒を配置use rustshogi::address::Address;use rustshogi::color::ColorType;use rustshogi::piece::PieceType;
 
         manual_game.board.deploy(
             Address::from_numbers(5, 5).to_index(),

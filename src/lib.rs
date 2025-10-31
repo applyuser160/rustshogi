@@ -33,55 +33,6 @@ pub mod random;
 #[path = "rustshogi/search/mod.rs"]
 pub mod search;
 
-#[cfg(test)]
-#[path = "rustshogi/test_address.rs"]
-pub mod test_address;
-#[cfg(test)]
-#[path = "rustshogi/test_bitboard.rs"]
-pub mod test_bitboard;
-#[cfg(test)]
-#[path = "rustshogi/test_board.rs"]
-pub mod test_board;
-#[cfg(test)]
-#[path = "rustshogi/test_board_pca.rs"]
-pub mod test_board_pca;
-#[cfg(test)]
-#[path = "rustshogi/test_color.rs"]
-pub mod test_color;
-#[cfg(test)]
-#[path = "rustshogi/test_common.rs"]
-pub mod test_common;
-#[cfg(test)]
-#[path = "rustshogi/test_direction.rs"]
-pub mod test_direction;
-#[cfg(test)]
-#[path = "rustshogi/test_game.rs"]
-pub mod test_game;
-#[cfg(test)]
-#[path = "rustshogi/test_hand.rs"]
-pub mod test_hand;
-#[cfg(test)]
-#[path = "rustshogi/test_moves.rs"]
-pub mod test_moves;
-#[cfg(test)]
-#[path = "rustshogi/test_neural_evaluator.rs"]
-pub mod test_neural_evaluator;
-#[cfg(test)]
-#[path = "rustshogi/test_nn_model.rs"]
-pub mod test_nn_model;
-#[cfg(test)]
-#[path = "rustshogi/test_pca.rs"]
-pub mod test_pca;
-#[cfg(test)]
-#[path = "rustshogi/test_piece.rs"]
-pub mod test_piece;
-#[cfg(test)]
-#[path = "rustshogi/test_random.rs"]
-pub mod test_random;
-#[cfg(test)]
-#[path = "rustshogi/test_search.rs"]
-pub mod test_search;
-
 use pyo3::prelude::*;
 
 #[pymodule]
