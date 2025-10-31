@@ -491,12 +491,13 @@ impl NeuralEvaluator {
         let target_count = max_samples.unwrap_or(total_count).min(total_count);
         println!("総レコード数: {} (使用: {})", total_count, target_count);
 
-        // バッチサイズ（メモリ効率化のため）
-        const BATCH_SIZE: usize = 10000;
+        // バッチサイズ（メモリ効率化のため）- メモリ使用量を1/3に削減
+        const BATCH_SIZE: usize = 3333;
 
         let mut training_data = TrainingData::new();
-        training_data.inputs.reserve(target_count);
-        training_data.targets.reserve(target_count);
+        // メモリ使用量を1/3に削減するため、事前確保サイズを減らす
+        training_data.inputs.reserve(target_count / 3);
+        training_data.targets.reserve(target_count / 3);
 
         println!(
             "バッチ処理でデータを読み込み中（バッチサイズ: {}）...",
