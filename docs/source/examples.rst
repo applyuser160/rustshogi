@@ -171,3 +171,207 @@ Gameクラスの使用
        print(f"ランダム対局の結果: {random_game}")
 
        return game
+
+評価関数の使用
+=============
+
+SimpleEvaluator（簡易評価関数）
+--------------------------------
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, SimpleEvaluator
+
+   def simple_evaluator_example():
+       """SimpleEvaluatorを使用した局面評価の例"""
+       board = Board("startpos")
+       evaluator = SimpleEvaluator()
+
+       # 先手の視点で局面を評価
+       score = evaluator.evaluate(board, ColorType.Black)
+       print(f"先手の評価値: {score}")
+
+       # 後手の視点で局面を評価
+       score = evaluator.evaluate(board, ColorType.White)
+       print(f"後手の評価値: {score}")
+
+       return evaluator
+
+NeuralEvaluator（ニューラルネットワーク評価関数）
+------------------------------------------------
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, NeuralEvaluator
+
+   def neural_evaluator_example():
+       """NeuralEvaluatorを使用した局面評価の例"""
+       # データベースとモデルパスを指定してNeuralEvaluatorを作成
+       evaluator = NeuralEvaluator(
+           db_type_str="sqlite",
+           connection_string="training.db",
+           model_path="model.mpk"
+       )
+
+       # データベースを初期化（初回のみ）
+       evaluator.init_database()
+
+       # ランダム盤面を生成してデータベースに保存
+       evaluator.generate_and_save_random_boards(1000)
+
+       # 盤面を評価
+       board = Board("startpos")
+       score = evaluator.evaluate(board, ColorType.Black)
+       print(f"評価値: {score}")
+
+       # 特定の局面の勝率を予測
+       white_win_rate, black_win_rate, draw_rate = evaluator.evaluate_position(board)
+       print(f"白勝率: {white_win_rate:.2%}")
+       print(f"黒勝率: {black_win_rate:.2%}")
+       print(f"引き分け率: {draw_rate:.2%}")
+
+       return evaluator
+
+探索エンジンの使用
+================
+
+基本的な探索
+-----------
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, SearchEngine, SimpleEvaluator
+
+   def basic_search_example():
+       """基本的な探索の例"""
+       board = Board("startpos")
+       
+       # デフォルトの探索エンジンを作成（MinMax、SimpleEvaluatorを使用）
+       engine = SearchEngine()
+
+       # 深度3で探索を実行
+       result = engine.search(board, ColorType.Black, depth=3)
+       
+       print(f"評価値: {result.score}")
+       print(f"最善手: {result.best_move}")
+       print(f"探索ノード数: {result.nodes_searched}")
+
+       # 最善手を実行
+       if result.best_move:
+           board.execute_move(result.best_move)
+           print(f"実行した手: {result.best_move}")
+
+       return engine
+
+AlphaBeta探索の使用
+-----------------
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, SearchEngine
+
+   def alphabeta_search_example():
+       """AlphaBeta探索を使用した例"""
+       board = Board("startpos")
+
+       # AlphaBeta探索を使用して探索エンジンを作成
+       engine = SearchEngine(
+           algorithm="alphabeta",
+           max_nodes=1000000  # 最大探索ノード数
+       )
+
+       # 深度4で探索を実行
+       result = engine.search(board, ColorType.Black, depth=4)
+       
+       print(f"評価値: {result.score}")
+       print(f"最善手: {result.best_move}")
+       print(f"探索ノード数: {result.nodes_searched}")
+
+       return engine
+
+カスタム評価関数を使用した探索
+-----------------------------
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, SearchEngine, SimpleEvaluator, NeuralEvaluator
+
+   def custom_evaluator_search_example():
+       """カスタム評価関数を使用した探索の例"""
+       board = Board("startpos")
+
+       # SimpleEvaluatorを使用
+       simple_evaluator = SimpleEvaluator()
+       engine = SearchEngine(
+           algorithm="alphabeta",
+           max_nodes=1000000,
+           evaluator=simple_evaluator
+       )
+
+       result = engine.search(board, ColorType.Black, depth=3)
+       print(f"SimpleEvaluatorでの評価値: {result.score}")
+
+       # NeuralEvaluatorを使用（モデルが存在する場合）
+       neural_evaluator = NeuralEvaluator(
+           db_type_str="sqlite",
+           connection_string="training.db",
+           model_path="model.mpk"
+       )
+       engine_neural = SearchEngine(
+           algorithm="alphabeta",
+           max_nodes=1000000,
+           evaluator=neural_evaluator
+       )
+
+       result_neural = engine_neural.search(board, ColorType.Black, depth=3)
+       print(f"NeuralEvaluatorでの評価値: {result_neural.score}")
+
+       return engine
+
+自動対局システム
+==============
+
+評価関数と探索を使用した自動対局
+--------------------------------
+
+.. code-block:: python
+
+   from rustshogi import Board, ColorType, SearchEngine, SimpleEvaluator
+
+   def auto_game_example():
+       """評価関数と探索を使用した自動対局の例"""
+       board = Board("startpos")
+       engine = SearchEngine(
+           algorithm="alphabeta",
+           max_nodes=500000,
+           evaluator=SimpleEvaluator()
+       )
+
+       current_color = ColorType.Black
+       move_count = 0
+       max_moves = 50
+
+       while move_count < max_moves:
+           # ゲーム終了判定
+           is_finished, winner = board.is_finished()
+           if is_finished:
+               print(f"ゲーム終了: 勝者 {winner}")
+               break
+
+           # 探索を実行して最善手を取得
+           result = engine.search(board, current_color, depth=3)
+           
+           if result.best_move:
+               board.execute_move(result.best_move)
+               move_count += 1
+               print(f"手数 {move_count}: {result.best_move} (評価値: {result.score:.2f})")
+               print(board)
+               print("-" * 40)
+           else:
+               print("合法手がありません")
+               break
+
+           # 手番を交代
+           current_color = ColorType.White if current_color == ColorType.Black else ColorType.Black
+
+       return board
