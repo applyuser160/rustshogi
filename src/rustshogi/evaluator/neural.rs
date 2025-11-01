@@ -590,6 +590,11 @@ impl NeuralEvaluator {
             total_count, target_count
         );
 
+        // 学習データが存在しない場合はエラーを返す
+        if target_count == 0 {
+            return Err("学習データが見つかりません".into());
+        }
+
         // データベースからの読み込みバッチサイズ（メモリ効率化）
         const DB_FETCH_BATCH_SIZE: usize = 1000;
 
