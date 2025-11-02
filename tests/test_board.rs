@@ -61,7 +61,7 @@ fn test_board_get_able_drop_squares() {
 fn test_board_search_moves() {
     let mut board = Board::new();
     board.startpos();
-    let result = board.search_moves(ColorType::Black);
+    let result = board.search_moves(ColorType::Black, true);
     assert_eq!(result.len(), 30);
 }
 
@@ -70,7 +70,7 @@ fn test_board_search_moves_with_promote() {
     let board = Board::from_sfen(
         "1r1gs2nb/l3kPs1l/1pp3p2/p5spp/3pp4/N3P1PP1/l1P1GK2P/nBg5L/1+R3S1N1 GP3p".to_string(),
     );
-    let result = board.search_moves(ColorType::Black);
+    let result = board.search_moves(ColorType::Black, true);
 
     // 成る手が含まれていることを確認
     let promote_moves: Vec<&Move> = result.iter().filter(|m| m.get_is_promote()).collect();
@@ -95,7 +95,7 @@ fn test_board_execute_promote_move_and_to_string() {
     );
 
     // 成る手を取得
-    let moves = board.search_moves(ColorType::Black);
+    let moves = board.search_moves(ColorType::Black, true);
     let promote_moves: Vec<&Move> = moves.iter().filter(|m| m.get_is_promote()).collect();
     assert!(
         !promote_moves.is_empty(),

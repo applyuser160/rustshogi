@@ -95,7 +95,7 @@ impl Game {
     pub fn one_play(&mut self) -> Self {
         // used for benchmark only
         while !self.is_finished().0 {
-            let moves = self.board.search_moves(self.turn);
+            let moves = self.board.search_moves(self.turn, true);
             let amove = &moves[0];
             self.execute_move(amove);
             let is_finish = self.is_finished();
@@ -109,7 +109,7 @@ impl Game {
 
     pub fn random_play(&mut self) -> Self {
         while !self.is_finished().0 {
-            let moves = self.board.search_moves(self.turn);
+            let moves = self.board.search_moves(self.turn, true);
             if moves.is_empty() {
                 break;
             }
@@ -132,7 +132,7 @@ impl Game {
             .build()
             .unwrap();
 
-        let next_moves = self.board.search_moves(self.turn);
+        let next_moves = self.board.search_moves(self.turn, true);
         let next_move_count = next_moves.len();
 
         if next_move_count == 0 {
@@ -173,7 +173,7 @@ impl Game {
 
                             // Perform a random playout.
                             while !game_clone.is_finished().0 {
-                                let moves = game_clone.board.search_moves_no_cache(game_clone.turn);
+                                let moves = game_clone.board.search_moves(game_clone.turn, false);
                                 if moves.is_empty() {
                                     break;
                                 }
@@ -200,7 +200,7 @@ impl Game {
     }
 
     pub fn random_move_sequential(&self, num: usize) -> Vec<MctsResult> {
-        let next_moves = self.board.search_moves(self.turn);
+        let next_moves = self.board.search_moves(self.turn, true);
         let next_move_count = next_moves.len();
 
         if next_move_count == 0 {
@@ -225,7 +225,7 @@ impl Game {
 
             // ランダムプレイでゲーム終了まで実行
             while !game_clone.is_finished().0 {
-                let moves = game_clone.board.search_moves(game_clone.turn);
+                let moves = game_clone.board.search_moves(game_clone.turn, true);
                 if moves.is_empty() {
                     break;
                 }
@@ -243,7 +243,7 @@ impl Game {
     }
 
     pub fn random_move_parallel_chunked(&self, num: usize, num_threads: usize) -> Vec<MctsResult> {
-        let next_moves = self.board.search_moves(self.turn);
+        let next_moves = self.board.search_moves(self.turn, true);
         let next_move_count = next_moves.len();
 
         if next_move_count == 0 {
@@ -285,7 +285,7 @@ impl Game {
 
                         // ランダムプレイでゲーム終了まで実行
                         while !game_clone.is_finished().0 {
-                            let moves = game_clone.board.search_moves(game_clone.turn);
+                            let moves = game_clone.board.search_moves(game_clone.turn, true);
                             if moves.is_empty() {
                                 break;
                             }
@@ -319,7 +319,7 @@ impl Game {
         num: usize,
         num_threads: usize,
     ) -> Vec<MctsResult> {
-        let next_moves = self.board.search_moves(self.turn);
+        let next_moves = self.board.search_moves(self.turn, true);
         let next_move_count = next_moves.len();
 
         if next_move_count == 0 {
@@ -354,7 +354,7 @@ impl Game {
 
                 // ランダムプレイでゲーム終了まで実行
                 while !game_clone.is_finished().0 {
-                    let moves = game_clone.board.search_moves(game_clone.turn);
+                    let moves = game_clone.board.search_moves(game_clone.turn, true);
                     if moves.is_empty() {
                         break;
                     }
@@ -379,7 +379,7 @@ impl Game {
     }
 
     pub fn random_move_parallel_batched(&self, num: usize, num_threads: usize) -> Vec<MctsResult> {
-        let next_moves = self.board.search_moves(self.turn);
+        let next_moves = self.board.search_moves(self.turn, true);
         let next_move_count = next_moves.len();
 
         if next_move_count == 0 {
@@ -422,7 +422,7 @@ impl Game {
 
                         // ランダムプレイでゲーム終了まで実行
                         while !game_clone.is_finished().0 {
-                            let moves = game_clone.board.search_moves(game_clone.turn);
+                            let moves = game_clone.board.search_moves(game_clone.turn, true);
                             if moves.is_empty() {
                                 break;
                             }
@@ -456,7 +456,7 @@ impl Game {
         let move_count = random.generate_one() as usize;
 
         for _ in 0..move_count {
-            let moves = self.board.search_moves(self.turn);
+            let moves = self.board.search_moves(self.turn, true);
             if moves.is_empty() {
                 break;
             }

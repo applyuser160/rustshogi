@@ -110,7 +110,7 @@ fn benchmark_game_logic(c: &mut Criterion) {
 
     group.bench_function("search_moves", |b| {
         b.iter(|| {
-            let _ = board.search_moves(ColorType::Black);
+            let _ = board.search_moves(ColorType::Black, true);
         });
     });
 
