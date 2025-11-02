@@ -1,7 +1,8 @@
 use rustshogi::address::Address;
 use rustshogi::board::Board;
 use rustshogi::color::ColorType;
-use rustshogi::evaluator::neural::{DatabaseType, NeuralEvaluator};
+use rustshogi::evaluator::database::DatabaseType;
+use rustshogi::evaluator::neural::NeuralEvaluator;
 use rustshogi::game::Game;
 use rustshogi::nn_model::TrainingConfig;
 use rustshogi::piece::PieceType;
