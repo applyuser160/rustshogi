@@ -561,10 +561,12 @@ impl Board {
         }
     }
 
-    pub fn search_moves(&self, color: ColorType) -> Vec<Move> {
-        let mut cache = MOVE_CACHE.lock().unwrap();
-        if let Some(moves) = cache.get(&(self.clone(), color)) {
-            return moves.clone();
+    pub fn search_moves(&self, color: ColorType, use_cache: bool) -> Vec<Move> {
+        if use_cache {
+            let mut cache = MOVE_CACHE.lock().unwrap();
+            if let Some(moves) = cache.get(&(self.clone(), color)) {
+                return moves.clone();
+            }
         }
 
         let mut vector_move: Vec<Move> = Vec::with_capacity(128);
@@ -604,7 +606,12 @@ impl Board {
             }));
         }
 
-        cache.put((self.clone(), color), vector_move.clone());
+        // キャッシュに保存
+        if use_cache {
+            let mut cache = MOVE_CACHE.lock().unwrap();
+            cache.put((self.clone(), color), vector_move.clone());
+        }
+
         vector_move
     }
 
@@ -832,7 +839,7 @@ impl Board {
 
     #[pyo3(name = "search_moves")]
     pub fn python_search_moves(&self, color: ColorType) -> Vec<Move> {
-        self.search_moves(color)
+        self.search_moves(color, true)
     }
 
     #[pyo3(name = "execute_move")]

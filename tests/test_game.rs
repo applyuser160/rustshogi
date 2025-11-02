@@ -61,7 +61,7 @@ fn test_game_random_move_parallel() {
     }
 
     // 結果の数が可能な手の数と一致することを確認
-    let possible_moves = game.board.search_moves(game.turn);
+    let possible_moves = game.board.search_moves(game.turn, true);
     assert_eq!(results.len(), possible_moves.len());
 }
 

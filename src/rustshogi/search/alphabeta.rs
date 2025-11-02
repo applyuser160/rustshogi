@@ -33,7 +33,7 @@ impl AlphaBetaSearchStrategy {
             return evaluator.evaluate(board, color);
         }
 
-        let moves = board.search_moves(color);
+        let moves = board.search_moves(color, true);
         if moves.is_empty() {
             return evaluator.evaluate(board, color);
         }
@@ -86,7 +86,7 @@ impl SearchStrategy for AlphaBetaSearchStrategy {
         let default_evaluator = super::super::evaluator::simple::SimpleEvaluator::new();
         let evaluator = evaluator.unwrap_or(&default_evaluator as &dyn Evaluator);
 
-        let moves = board.search_moves(color);
+        let moves = board.search_moves(color, true);
         if moves.is_empty() {
             return EvaluationResult {
                 score: evaluator.evaluate(board, color),
