@@ -156,207 +156,63 @@ impl Board {
     }
 
     pub fn startpos(&mut self) {
-        self.deploy(
-            Address::from_numbers(1, 1).to_index(),
-            PieceType::Lance,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(2, 1).to_index(),
-            PieceType::Knight,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(3, 1).to_index(),
-            PieceType::Silver,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(4, 1).to_index(),
-            PieceType::Gold,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(5, 1).to_index(),
-            PieceType::King,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(6, 1).to_index(),
-            PieceType::Gold,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(7, 1).to_index(),
-            PieceType::Silver,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(8, 1).to_index(),
-            PieceType::Knight,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(9, 1).to_index(),
-            PieceType::Lance,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(2, 2).to_index(),
-            PieceType::Bichop,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(8, 2).to_index(),
-            PieceType::Rook,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(1, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(2, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(3, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(4, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(5, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(6, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(7, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(8, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
-        self.deploy(
-            Address::from_numbers(9, 3).to_index(),
-            PieceType::Pawn,
-            ColorType::Black,
-        );
+        // 初期配置: (column, row, piece_type, color)
+        let positions = [
+            // 黒の駒 - 1段目
+            (1, 1, PieceType::Lance, ColorType::Black),
+            (2, 1, PieceType::Knight, ColorType::Black),
+            (3, 1, PieceType::Silver, ColorType::Black),
+            (4, 1, PieceType::Gold, ColorType::Black),
+            (5, 1, PieceType::King, ColorType::Black),
+            (6, 1, PieceType::Gold, ColorType::Black),
+            (7, 1, PieceType::Silver, ColorType::Black),
+            (8, 1, PieceType::Knight, ColorType::Black),
+            (9, 1, PieceType::Lance, ColorType::Black),
+            // 黒の駒 - 2段目
+            (2, 2, PieceType::Bichop, ColorType::Black),
+            (8, 2, PieceType::Rook, ColorType::Black),
+            // 黒の駒 - 3段目（歩）
+            (1, 3, PieceType::Pawn, ColorType::Black),
+            (2, 3, PieceType::Pawn, ColorType::Black),
+            (3, 3, PieceType::Pawn, ColorType::Black),
+            (4, 3, PieceType::Pawn, ColorType::Black),
+            (5, 3, PieceType::Pawn, ColorType::Black),
+            (6, 3, PieceType::Pawn, ColorType::Black),
+            (7, 3, PieceType::Pawn, ColorType::Black),
+            (8, 3, PieceType::Pawn, ColorType::Black),
+            (9, 3, PieceType::Pawn, ColorType::Black),
+            // 白の駒 - 9段目
+            (1, 9, PieceType::Lance, ColorType::White),
+            (2, 9, PieceType::Knight, ColorType::White),
+            (3, 9, PieceType::Silver, ColorType::White),
+            (4, 9, PieceType::Gold, ColorType::White),
+            (5, 9, PieceType::King, ColorType::White),
+            (6, 9, PieceType::Gold, ColorType::White),
+            (7, 9, PieceType::Silver, ColorType::White),
+            (8, 9, PieceType::Knight, ColorType::White),
+            (9, 9, PieceType::Lance, ColorType::White),
+            // 白の駒 - 8段目
+            (8, 8, PieceType::Bichop, ColorType::White),
+            (2, 8, PieceType::Rook, ColorType::White),
+            // 白の駒 - 7段目（歩）
+            (1, 7, PieceType::Pawn, ColorType::White),
+            (2, 7, PieceType::Pawn, ColorType::White),
+            (3, 7, PieceType::Pawn, ColorType::White),
+            (4, 7, PieceType::Pawn, ColorType::White),
+            (5, 7, PieceType::Pawn, ColorType::White),
+            (6, 7, PieceType::Pawn, ColorType::White),
+            (7, 7, PieceType::Pawn, ColorType::White),
+            (8, 7, PieceType::Pawn, ColorType::White),
+            (9, 7, PieceType::Pawn, ColorType::White),
+        ];
 
-        self.deploy(
-            Address::from_numbers(1, 9).to_index(),
-            PieceType::Lance,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(2, 9).to_index(),
-            PieceType::Knight,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(3, 9).to_index(),
-            PieceType::Silver,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(4, 9).to_index(),
-            PieceType::Gold,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(5, 9).to_index(),
-            PieceType::King,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(6, 9).to_index(),
-            PieceType::Gold,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(7, 9).to_index(),
-            PieceType::Silver,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(8, 9).to_index(),
-            PieceType::Knight,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(9, 9).to_index(),
-            PieceType::Lance,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(8, 8).to_index(),
-            PieceType::Bichop,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(2, 8).to_index(),
-            PieceType::Rook,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(1, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(2, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(3, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(4, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(5, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(6, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(7, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(8, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
-        self.deploy(
-            Address::from_numbers(9, 7).to_index(),
-            PieceType::Pawn,
-            ColorType::White,
-        );
+        for (column, row, piece_type, color) in positions.iter() {
+            self.deploy(
+                Address::from_numbers(*column, *row).to_index(),
+                *piece_type,
+                *color,
+            );
+        }
 
         self.hand = Hand::new();
     }
