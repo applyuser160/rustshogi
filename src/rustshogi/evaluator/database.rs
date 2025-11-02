@@ -1,8 +1,8 @@
-use pyo3::prelude::*;
-use serde::{Deserialize, Serialize};
-use rusqlite;
-use tokio_postgres;
 use chrono;
+use pyo3::prelude::*;
+use rusqlite;
+use serde::{Deserialize, Serialize};
+use tokio_postgres;
 
 /// 学習データベースのレコード構造体
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -299,7 +299,10 @@ impl TrainingDatabase {
     }
 
     /// 新しい盤面をデータベースに保存
-    pub fn save_new_board(&self, board_sfen: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn save_new_board(
+        &self,
+        board_sfen: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
@@ -454,7 +457,10 @@ impl TrainingDatabase {
     }
 
     /// 学習対象のレコード数を取得
-    pub fn count_records_for_training(&self, min_games: i32) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn count_records_for_training(
+        &self,
+        min_games: i32,
+    ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
                 let conn = rusqlite::Connection::open(db_path)?;
