@@ -451,6 +451,14 @@ impl NeuralEvaluator {
                     }
                 }
             }
+
+            // モデルを保存
+            let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+            if let Err(e) = model.clone().save_file(&model_save_path, &recorder) {
+                eprintln!("モデルの保存に失敗しました: {}", e);
+            } else {
+                println!("モデルを保存しました: {}", &model_save_path);
+            }
         }
 
         println!("学習が完了しました");
