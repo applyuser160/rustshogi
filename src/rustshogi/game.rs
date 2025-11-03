@@ -107,9 +107,9 @@ impl Game {
         self.clone()
     }
 
-    pub fn random_play(&mut self) -> Self {
+    fn perform_random_playout(&mut self, check_legal: bool) -> ColorType {
         while !self.is_finished().0 {
-            let moves = self.board.search_moves(self.turn, true);
+            let moves = self.board.search_moves(self.turn, check_legal);
             if moves.is_empty() {
                 break;
             }
@@ -117,12 +117,12 @@ impl Game {
             let mut random = Random::new(0, (moves.len() - 1) as u16);
             let amove = &moves[random.generate_one() as usize];
             self.execute_move(amove);
-            let is_finish = self.is_finished();
-            if is_finish.0 {
-                self.winner = is_finish.1;
-                break;
-            }
         }
+        self.is_finished().1
+    }
+
+    pub fn random_play(&mut self) -> Self {
+        self.winner = self.perform_random_playout(true);
         self.clone()
     }
 
@@ -170,20 +170,7 @@ impl Game {
                     (0..num_sims_for_this_move)
                         .map(|_| {
                             let mut game_clone = initial_game_clone.clone();
-
-                            // Perform a random playout.
-                            while !game_clone.is_finished().0 {
-                                let moves = game_clone.board.search_moves(game_clone.turn, false);
-                                if moves.is_empty() {
-                                    break;
-                                }
-                                let move_count = moves.len();
-                                let mut random = Random::new(0, (move_count - 1) as u16);
-                                let random_move = &moves[random.generate_one() as usize];
-                                game_clone.execute_move(random_move);
-                            }
-
-                            let (_is_finished, winner) = game_clone.is_finished();
+                            let winner = game_clone.perform_random_playout(false);
                             (winner, move_index)
                         })
                         .collect::<Vec<_>>()
@@ -204,6 +191,9 @@ impl Game {
         let move_count = random.generate_one() as usize;
 
         for _ in 0..move_count {
+            if self.is_finished().0 {
+                break;
+            }
             let moves = self.board.search_moves(self.turn, true);
             if moves.is_empty() {
                 break;
@@ -212,10 +202,6 @@ impl Game {
             let mut random = Random::new(0, (moves.len() - 1) as u16);
             let amove = &moves[random.generate_one() as usize].clone();
             self.execute_move(amove);
-
-            if self.is_finished().0 {
-                break;
-            }
         }
         self.board.clone()
     }
