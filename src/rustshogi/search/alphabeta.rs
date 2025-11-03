@@ -84,42 +84,47 @@ impl SearchStrategy for AlphaBetaSearchStrategy {
     ) -> EvaluationResult {
         let strategy = self;
         let search_depth = depth;
-        search_strategy::search_helper(board, color, evaluator, move |board, color, evaluator, moves| {
-            let mut best_score = f32::NEG_INFINITY;
-            let mut best_move = moves[0].clone();
-            let mut nodes = 0u64;
-            let mut alpha = f32::NEG_INFINITY;
-            let beta = f32::INFINITY;
+        search_strategy::search_helper(
+            board,
+            color,
+            evaluator,
+            move |board, color, evaluator, moves| {
+                let mut best_score = f32::NEG_INFINITY;
+                let mut best_move = moves[0].clone();
+                let mut nodes = 0u64;
+                let mut alpha = f32::NEG_INFINITY;
+                let beta = f32::INFINITY;
 
-            for mv in &moves {
-                let mut new_board = board.clone();
-                new_board.execute_move(mv);
-                let score = -strategy.alphabeta(
-                    &new_board,
-                    get_reverse_color(color),
-                    search_depth.saturating_sub(1),
-                    -beta,
-                    -alpha,
-                    &mut nodes,
-                    evaluator,
-                );
+                for mv in &moves {
+                    let mut new_board = board.clone();
+                    new_board.execute_move(mv);
+                    let score = -strategy.alphabeta(
+                        &new_board,
+                        get_reverse_color(color),
+                        search_depth.saturating_sub(1),
+                        -beta,
+                        -alpha,
+                        &mut nodes,
+                        evaluator,
+                    );
 
-                if score > best_score {
-                    best_score = score;
-                    best_move = mv.clone();
+                    if score > best_score {
+                        best_score = score;
+                        best_move = mv.clone();
+                    }
+
+                    alpha = alpha.max(score);
+                    if beta <= alpha {
+                        break; // Beta cutoff
+                    }
                 }
 
-                alpha = alpha.max(score);
-                if beta <= alpha {
-                    break; // Beta cutoff
+                EvaluationResult {
+                    score: best_score,
+                    best_move: Some(best_move),
+                    nodes_searched: nodes,
                 }
-            }
-
-            EvaluationResult {
-                score: best_score,
-                best_move: Some(best_move),
-                nodes_searched: nodes,
-            }
-        })
+            },
+        )
     }
 }
