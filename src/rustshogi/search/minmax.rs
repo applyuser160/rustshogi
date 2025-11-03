@@ -69,45 +69,35 @@ impl SearchStrategy for MinMaxSearchStrategy {
         depth: u8,
         evaluator: Option<&dyn Evaluator>,
     ) -> EvaluationResult {
-        let default_evaluator;
-        let evaluator = match evaluator {
-            Some(e) => e,
-            None => {
-                default_evaluator = search_strategy::get_default_evaluator();
-                &default_evaluator
+        let strategy = self;
+        let search_depth = depth;
+        search_strategy::search_helper(board, color, evaluator, move |board, color, evaluator, moves| {
+            let mut best_score = f32::NEG_INFINITY;
+            let mut best_move = moves[0].clone();
+            let mut nodes = 0u64;
+
+            for mv in &moves {
+                let mut new_board = board.clone();
+                new_board.execute_move(mv);
+                let score = -strategy.minmax(
+                    &new_board,
+                    get_reverse_color(color),
+                    search_depth.saturating_sub(1),
+                    &mut nodes,
+                    evaluator,
+                );
+
+                if score > best_score {
+                    best_score = score;
+                    best_move = mv.clone();
+                }
             }
-        };
 
-        let moves = board.search_moves(color, true);
-        if moves.is_empty() {
-            return search_strategy::handle_no_moves(evaluator, board, color);
-        }
-
-        let mut best_score = f32::NEG_INFINITY;
-        let mut best_move = moves[0].clone();
-        let mut nodes = 0u64;
-
-        for mv in &moves {
-            let mut new_board = board.clone();
-            new_board.execute_move(mv);
-            let score = -self.minmax(
-                &new_board,
-                get_reverse_color(color),
-                depth.saturating_sub(1),
-                &mut nodes,
-                evaluator,
-            );
-
-            if score > best_score {
-                best_score = score;
-                best_move = mv.clone();
+            EvaluationResult {
+                score: best_score,
+                best_move: Some(best_move),
+                nodes_searched: nodes,
             }
-        }
-
-        EvaluationResult {
-            score: best_score,
-            best_move: Some(best_move),
-            nodes_searched: nodes,
-        }
+        })
     }
 }
