@@ -196,6 +196,115 @@ impl NeuralEvaluator {
         squared_diff.mean()
     }
 
+    /// モデルの初期化処理（既存モデルの読み込みまたは新規作成）
+    fn initialize_model(
+        model_save_path: &str,
+        device: &NdArrayDevice,
+    ) -> Result<NnModel<Autodiff<NdArray>>, Box<dyn std::error::Error + Send + Sync>> {
+        let model_config = NnModelConfig::default();
+        let model = if Path::new(model_save_path).exists() {
+            let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+            NnModel::new(&model_config, device).load_file(model_save_path, &recorder, device)?
+        } else {
+            NnModel::new(&model_config, device)
+        };
+        Ok(model)
+    }
+
+    /// 1バッチの学習処理
+    fn process_training_batch(
+        model: NnModel<Autodiff<NdArray>>,
+        batch_inputs: &[Vec<f32>],
+        batch_targets: &[Vec<f32>],
+        device: &NdArrayDevice,
+        optim: &mut impl Optimizer<NnModel<Autodiff<NdArray>>, Autodiff<NdArray>>,
+        current_lr: f64,
+    ) -> (NnModel<Autodiff<NdArray>>, f32) {
+        let (input_dim, output_dim) = (2320, 3);
+        let batch_size = batch_inputs.len();
+
+        let mut flat_inputs = Vec::with_capacity(batch_size * input_dim);
+        let mut flat_targets = Vec::with_capacity(batch_size * output_dim);
+
+        for i in 0..batch_size {
+            flat_inputs.extend_from_slice(&batch_inputs[i]);
+            flat_targets.extend_from_slice(&batch_targets[i]);
+        }
+
+        let batch_input_tensor =
+            Tensor::<Autodiff<NdArray>, 1>::from_floats(flat_inputs.as_slice(), device)
+                .reshape([batch_size, input_dim]);
+
+        let batch_target_tensor =
+            Tensor::<Autodiff<NdArray>, 1>::from_floats(flat_targets.as_slice(), device)
+                .reshape([batch_size, output_dim]);
+
+        let predictions = model.forward(batch_input_tensor);
+        let loss = Self::mse_loss_autodiff(&predictions, &batch_target_tensor);
+        let loss_value: f32 = loss.clone().into_scalar();
+
+        let grads = loss.backward();
+        let grads_params = GradientsParams::from_grads(grads, &model);
+        let updated_model = optim.step(current_lr, model, grads_params);
+
+        (updated_model, loss_value)
+    }
+
+    /// 進捗表示の更新
+    fn update_progress_display(
+        processed_samples: usize,
+        target_count: usize,
+        epoch_start_time: &Instant,
+    ) {
+        let progress_percent = (processed_samples as f64 / target_count as f64) * 100.0;
+        let elapsed = epoch_start_time.elapsed();
+        let elapsed_secs = elapsed.as_secs_f64();
+
+        let remaining_samples = target_count - processed_samples;
+        let samples_per_sec = if elapsed_secs > 0.0 {
+            processed_samples as f64 / elapsed_secs
+        } else {
+            0.0
+        };
+        let estimated_remaining_secs = if samples_per_sec > 0.0 {
+            remaining_samples as f64 / samples_per_sec
+        } else {
+            0.0
+        };
+        let estimated_remaining_mins = estimated_remaining_secs / 60.0;
+
+        let now = std::time::SystemTime::now();
+        let estimated_end = now + std::time::Duration::from_secs(estimated_remaining_secs as u64);
+        let end_time_str = chrono::DateTime::<chrono::Local>::from(estimated_end)
+            .format("%H:%M:%S")
+            .to_string();
+
+        print!(
+            "\r  進捗: {}/{} ({:.1}%) - 経過: {:.1}秒 - 速度: {:.0} サンプル/秒 - 残り: {:.1}分 (予想終了: {})    ",
+            processed_samples,
+            target_count,
+            progress_percent,
+            elapsed_secs,
+            samples_per_sec,
+            estimated_remaining_mins,
+            end_time_str
+        );
+        io::stdout().flush().unwrap();
+    }
+
+
+    /// モデル保存処理
+    fn save_model_checkpoint(
+        model: &NnModel<Autodiff<NdArray>>,
+        model_save_path: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+        model.clone().save_file(model_save_path, &recorder)?;
+        println!("モデルを保存しました: {}", model_save_path);
+        Ok(())
+    }
+
+
     /// 学習データを取得してモデルを訓練（ストリーミング処理で全データを使用）
     pub fn train_model(
         &self,
@@ -208,234 +317,106 @@ impl NeuralEvaluator {
         let start_time = Instant::now();
         println!("モデルの訓練を開始します...");
 
-        // まず総レコード数を取得
         let total_count = db.count_records_for_training(min_games)?;
-
-        // max_samplesが指定されていない場合は全データを使用（ストリーミング処理でメモリ効率的）
         let target_count = max_samples.unwrap_or(total_count).min(total_count);
         println!(
-            "総レコード数: {} (使用: {} - ストリーミング処理で全データを使用)",
+            "総レコード数: {} (使用: {})",
             total_count, target_count
         );
 
-        // 学習データが存在しない場合はエラーを返す
         if target_count == 0 {
             return Err("学習データが見つかりません".into());
         }
 
-        // データベースからの読み込みバッチサイズ（メモリ効率化）
         const DB_FETCH_BATCH_SIZE: usize = 1000;
-
-        // ストリーミング処理用: モデルとオプティマイザーを初期化
         let device = NdArrayDevice::default();
-        let model_config = NnModelConfig::default();
-
-        let mut model: NnModel<Autodiff<NdArray>>;
-        if Path::new(&model_save_path).exists() {
-            let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-            model = NnModel::new(&model_config, &device).load_file(
-                &model_save_path,
-                &recorder,
-                &device,
-            )?;
-        } else {
-            model = NnModel::new(&model_config, &device);
-        }
+        let mut model = Self::initialize_model(&model_save_path, &device)?;
 
         let optim_config = AdamConfig::new();
         let mut optim = optim_config.init();
 
-        // 学習パラメータ
-        let input_dim = 2320;
-        let output_dim = 3;
-        let batch_size = training_config.batch_size;
-
-        println!("ストリーミング処理で学習を開始します（全データを使用）...");
         println!(
-            "エポック数: {}, バッチサイズ: {}",
-            training_config.num_epochs, batch_size
+            "学習を開始します: エポック数={}, バッチサイズ={}",
+            training_config.num_epochs, training_config.batch_size
         );
 
-        // 早期停止用の変数
         let mut best_loss = f32::INFINITY;
         let mut patience_counter = 0;
 
-        // エポックごとの学習ループ
         for epoch in 0..training_config.num_epochs {
             let epoch_start_time = Instant::now();
             let mut total_loss = 0.0;
             let mut batch_count = 0;
-
-            // 学習率スケジューリング
             let current_lr = if training_config.use_lr_scheduling {
                 training_config.learning_rate * (0.95_f64.powi(epoch as i32))
             } else {
                 training_config.learning_rate
             };
 
-            println!(
-                "エポック {} 開始: データベースからストリーミング読み込み...",
-                epoch
-            );
+            println!("エポック {} 開始...", epoch);
 
-            // データベースからストリーミング読み込み
             let mut db_offset = 0;
             let mut processed_samples = 0;
-            let progress_update_interval = 1000; // 1000サンプルごとに進捗表示
+            const PROGRESS_UPDATE_INTERVAL: usize = 1000;
 
             loop {
-                // データベースからバッチを取得
                 let batch_records =
                     db.fetch_batch_from_db(min_games, DB_FETCH_BATCH_SIZE, db_offset)?;
-
                 if batch_records.is_empty() {
                     break;
                 }
 
-                // バッチ内のデータを処理して学習バッチを作成
                 let mut batch_inputs = Vec::new();
                 let mut batch_targets = Vec::new();
 
                 for (board_sfen, white_wins, black_wins, total_games) in batch_records {
                     let board = Board::from_sfen(board_sfen);
-                    let board_vector = board.to_vector(None);
+                    batch_inputs.push(board.to_vector(None));
 
-                    let white_win_rate = if total_games > 0 {
-                        white_wins as f32 / total_games as f32
-                    } else {
-                        0.5
-                    };
-                    let black_win_rate = if total_games > 0 {
-                        black_wins as f32 / total_games as f32
-                    } else {
-                        0.5
-                    };
-                    let draw_rate = if total_games > 0 {
-                        (total_games - white_wins - black_wins) as f32 / total_games as f32
-                    } else {
-                        0.0
-                    };
-
-                    batch_inputs.push(board_vector);
+                    let white_win_rate = if total_games > 0 { white_wins as f32 / total_games as f32 } else { 0.5 };
+                    let black_win_rate = if total_games > 0 { black_wins as f32 / total_games as f32 } else { 0.5 };
+                    let draw_rate = if total_games > 0 { (total_games - white_wins - black_wins) as f32 / total_games as f32 } else { 0.0 };
                     batch_targets.push(vec![white_win_rate, black_win_rate, draw_rate]);
                 }
 
-                // 学習バッチサイズで分割して処理
-                for batch_start in (0..batch_inputs.len()).step_by(batch_size) {
-                    let batch_end = (batch_start + batch_size).min(batch_inputs.len());
+                for batch_start in (0..batch_inputs.len()).step_by(training_config.batch_size) {
+                    let batch_end = (batch_start + training_config.batch_size).min(batch_inputs.len());
                     let current_batch_size = batch_end - batch_start;
 
-                    // バッチデータを準備
-                    let mut flat_inputs = Vec::with_capacity(current_batch_size * input_dim);
-                    let mut flat_targets = Vec::with_capacity(current_batch_size * output_dim);
-
-                    for i in batch_start..batch_end {
-                        flat_inputs.extend_from_slice(&batch_inputs[i]);
-                        flat_targets.extend_from_slice(&batch_targets[i]);
-                    }
-
-                    // テンソルに変換
-                    let batch_input_tensor = Tensor::<Autodiff<NdArray>, 1>::from_floats(
-                        flat_inputs.as_slice(),
+                    let (updated_model, loss_value) = Self::process_training_batch(
+                        model,
+                        &batch_inputs[batch_start..batch_end],
+                        &batch_targets[batch_start..batch_end],
                         &device,
-                    )
-                    .reshape([current_batch_size, input_dim]);
-
-                    let batch_target_tensor = Tensor::<Autodiff<NdArray>, 1>::from_floats(
-                        flat_targets.as_slice(),
-                        &device,
-                    )
-                    .reshape([current_batch_size, output_dim]);
-
-                    // フォワードパス
-                    let predictions = model.forward(batch_input_tensor);
-
-                    // 損失計算
-                    let loss = Self::mse_loss_autodiff(&predictions, &batch_target_tensor);
-                    let loss_value: f32 = loss.clone().into_scalar();
+                        &mut optim,
+                        current_lr,
+                    );
+                    model = updated_model;
                     total_loss += loss_value;
-
-                    // バックプロパゲーション
-                    let grads = loss.backward();
-                    let grads_params = GradientsParams::from_grads(grads, &model);
-                    model = optim.step(current_lr, model, grads_params);
 
                     batch_count += 1;
                     processed_samples += current_batch_size;
 
-                    // 進捗表示（一定間隔ごと、または最後のバッチ）
-                    if processed_samples % progress_update_interval == 0
-                        || processed_samples >= target_count
-                        || (db_offset + DB_FETCH_BATCH_SIZE >= target_count
-                            && batch_start + batch_size >= batch_inputs.len())
-                    {
-                        let progress_percent =
-                            (processed_samples as f64 / target_count as f64) * 100.0;
-                        let elapsed = epoch_start_time.elapsed();
-                        let elapsed_secs = elapsed.as_secs_f64();
-
-                        // 残り時間の計算
-                        let remaining_samples = target_count - processed_samples;
-                        let samples_per_sec = if elapsed_secs > 0.0 {
-                            processed_samples as f64 / elapsed_secs
-                        } else {
-                            0.0
-                        };
-                        let estimated_remaining_secs = if samples_per_sec > 0.0 {
-                            remaining_samples as f64 / samples_per_sec
-                        } else {
-                            0.0
-                        };
-                        let estimated_remaining_mins = estimated_remaining_secs / 60.0;
-
-                        // 現在時刻から予想終了時刻を計算
-                        let now = std::time::SystemTime::now();
-                        let estimated_end =
-                            now + std::time::Duration::from_secs(estimated_remaining_secs as u64);
-                        let end_time_str = chrono::DateTime::<chrono::Local>::from(estimated_end)
-                            .format("%H:%M:%S")
-                            .to_string();
-
-                        // 同じ行を上書きするために\rを使う
-                        print!(
-                            "\r  進捗: {}/{} ({:.1}%) - 経過: {:.1}秒 - 速度: {:.0} サンプル/秒 - 残り: {:.1}分 (予想終了: {})    ",
-                            processed_samples,
-                            target_count,
-                            progress_percent,
-                            elapsed_secs,
-                            samples_per_sec,
-                            estimated_remaining_mins,
-                            end_time_str
-                        );
-                        io::stdout().flush().unwrap();
+                    if processed_samples % PROGRESS_UPDATE_INTERVAL == 0 || processed_samples >= target_count {
+                        Self::update_progress_display(processed_samples, target_count, &epoch_start_time);
                     }
-
-                    // メモリ解放
-                    drop(flat_inputs);
-                    drop(flat_targets);
                 }
 
                 db_offset += DB_FETCH_BATCH_SIZE;
-
                 if db_offset >= target_count {
                     break;
                 }
             }
-
-            // 進捗表示の最後の行をクリア（改行を追加）
             println!();
 
             let avg_loss = total_loss / batch_count as f32;
-            let epoch_elapsed = epoch_start_time.elapsed();
             println!(
-                "エポック {} 完了: 平均損失 = {:.6}, バッチ数 = {}, 経過時間 = {:.2}秒",
+                "エポック {} 完了: 平均損失 = {:.6}, 経過時間 = {:.2}秒",
                 epoch,
                 avg_loss,
-                batch_count,
-                epoch_elapsed.as_secs_f64()
+                epoch_start_time.elapsed().as_secs_f64()
             );
 
-            // 早期停止チェック
             if training_config.use_early_stopping {
                 if avg_loss < best_loss {
                     best_loss = avg_loss;
@@ -443,36 +424,23 @@ impl NeuralEvaluator {
                 } else {
                     patience_counter += 1;
                     if patience_counter >= training_config.early_stopping_patience {
-                        println!(
-                            "早期停止: エポック {} で学習を終了します（損失改善なし）",
-                            epoch
-                        );
+                        println!("早期停止: エポック {} で学習を終了します", epoch);
                         break;
                     }
                 }
             }
 
-            // モデルを保存
-            let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-            if let Err(e) = model.clone().save_file(&model_save_path, &recorder) {
+            if let Err(e) = Self::save_model_checkpoint(&model, &model_save_path) {
                 eprintln!("モデルの保存に失敗しました: {}", e);
-            } else {
-                println!("モデルを保存しました: {}", &model_save_path);
             }
         }
 
         println!("学習が完了しました");
-
-        // モデルを保存
-        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-        if let Err(e) = model.save_file(&model_save_path, &recorder) {
-            eprintln!("モデルの保存に失敗しました: {}", e);
-        } else {
-            println!("モデルを保存しました: {}", &model_save_path);
+        if let Err(e) = Self::save_model_checkpoint(&model, &model_save_path) {
+            eprintln!("最終モデルの保存に失敗しました: {}", e);
         }
 
-        let total_elapsed = start_time.elapsed();
-        println!("モデル訓練の総時間: {:.2}秒", total_elapsed.as_secs_f64());
+        println!("モデル訓練の総時間: {:.2}秒", start_time.elapsed().as_secs_f64());
         Ok(())
     }
 

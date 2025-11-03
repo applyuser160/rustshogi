@@ -1,8 +1,9 @@
 use super::super::board::Board;
 use super::super::color::{get_reverse_color, ColorType};
 use super::super::evaluator::abst::Evaluator;
-use super::search_strategy::EvaluationResult;
-use super::search_strategy::SearchStrategy;
+use super::search_strategy::{
+    self, EvaluationResult, SearchStrategy,
+};
 use pyo3::prelude::*;
 
 /// MinMax探索アルゴリズム
@@ -70,16 +71,18 @@ impl SearchStrategy for MinMaxSearchStrategy {
         depth: u8,
         evaluator: Option<&dyn Evaluator>,
     ) -> EvaluationResult {
-        let default_evaluator = super::super::evaluator::simple::SimpleEvaluator::new();
-        let evaluator = evaluator.unwrap_or(&default_evaluator as &dyn Evaluator);
+        let default_evaluator;
+        let evaluator = match evaluator {
+            Some(e) => e,
+            None => {
+                default_evaluator = search_strategy::get_default_evaluator();
+                &default_evaluator
+            }
+        };
 
         let moves = board.search_moves(color, true);
         if moves.is_empty() {
-            return EvaluationResult {
-                score: evaluator.evaluate(board, color),
-                best_move: None,
-                nodes_searched: 1,
-            };
+            return search_strategy::handle_no_moves(evaluator, board, color);
         }
 
         let mut best_score = f32::NEG_INFINITY;
