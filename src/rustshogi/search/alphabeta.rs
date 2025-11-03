@@ -1,8 +1,7 @@
 use super::super::board::Board;
 use super::super::color::{get_reverse_color, ColorType};
 use super::super::evaluator::abst::Evaluator;
-use super::search_strategy::EvaluationResult;
-use super::search_strategy::SearchStrategy;
+use super::search_strategy::{self, EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
 
 /// AlphaBeta探索アルゴリズム
@@ -33,7 +32,7 @@ impl AlphaBetaSearchStrategy {
             return evaluator.evaluate(board, color);
         }
 
-        let moves = board.search_moves(color);
+        let moves = board.search_moves(color, true);
         if moves.is_empty() {
             return evaluator.evaluate(board, color);
         }
@@ -83,52 +82,49 @@ impl SearchStrategy for AlphaBetaSearchStrategy {
         depth: u8,
         evaluator: Option<&dyn Evaluator>,
     ) -> EvaluationResult {
-        let default_evaluator = super::super::evaluator::simple::SimpleEvaluator::new();
-        let evaluator = evaluator.unwrap_or(&default_evaluator as &dyn Evaluator);
+        let strategy = self;
+        let search_depth = depth;
+        search_strategy::search_helper(
+            board,
+            color,
+            evaluator,
+            move |board, color, evaluator, moves| {
+                let mut best_score = f32::NEG_INFINITY;
+                let mut best_move = moves[0].clone();
+                let mut nodes = 0u64;
+                let mut alpha = f32::NEG_INFINITY;
+                let beta = f32::INFINITY;
 
-        let moves = board.search_moves(color);
-        if moves.is_empty() {
-            return EvaluationResult {
-                score: evaluator.evaluate(board, color),
-                best_move: None,
-                nodes_searched: 1,
-            };
-        }
+                for mv in &moves {
+                    let mut new_board = board.clone();
+                    new_board.execute_move(mv);
+                    let score = -strategy.alphabeta(
+                        &new_board,
+                        get_reverse_color(color),
+                        search_depth.saturating_sub(1),
+                        -beta,
+                        -alpha,
+                        &mut nodes,
+                        evaluator,
+                    );
 
-        let mut best_score = f32::NEG_INFINITY;
-        let mut best_move = moves[0].clone();
-        let mut nodes = 0u64;
-        let mut alpha = f32::NEG_INFINITY;
-        let beta = f32::INFINITY;
+                    if score > best_score {
+                        best_score = score;
+                        best_move = mv.clone();
+                    }
 
-        for mv in &moves {
-            let mut new_board = board.clone();
-            new_board.execute_move(mv);
-            let score = -self.alphabeta(
-                &new_board,
-                get_reverse_color(color),
-                depth.saturating_sub(1),
-                -beta,
-                -alpha,
-                &mut nodes,
-                evaluator,
-            );
+                    alpha = alpha.max(score);
+                    if beta <= alpha {
+                        break; // Beta cutoff
+                    }
+                }
 
-            if score > best_score {
-                best_score = score;
-                best_move = mv.clone();
-            }
-
-            alpha = alpha.max(score);
-            if beta <= alpha {
-                break;
-            }
-        }
-
-        EvaluationResult {
-            score: best_score,
-            best_move: Some(best_move),
-            nodes_searched: nodes,
-        }
+                EvaluationResult {
+                    score: best_score,
+                    best_move: Some(best_move),
+                    nodes_searched: nodes,
+                }
+            },
+        )
     }
 }
