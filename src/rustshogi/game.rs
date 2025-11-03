@@ -107,9 +107,9 @@ impl Game {
         self.clone()
     }
 
-    fn perform_random_playout(&mut self, check_legal: bool) -> ColorType {
+    fn perform_random_playout(&mut self, use_cache: bool) -> ColorType {
         while !self.is_finished().0 {
-            let moves = self.board.search_moves(self.turn, check_legal);
+            let moves = self.board.search_moves(self.turn, use_cache);
             if moves.is_empty() {
                 break;
             }
