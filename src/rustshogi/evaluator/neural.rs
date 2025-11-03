@@ -292,7 +292,6 @@ impl NeuralEvaluator {
         io::stdout().flush().unwrap();
     }
 
-
     /// モデル保存処理
     fn save_model_checkpoint(
         model: &NnModel<Autodiff<NdArray>>,
@@ -303,7 +302,6 @@ impl NeuralEvaluator {
         println!("モデルを保存しました: {}", model_save_path);
         Ok(())
     }
-
 
     /// 学習データを取得してモデルを訓練（ストリーミング処理で全データを使用）
     pub fn train_model(
@@ -319,10 +317,7 @@ impl NeuralEvaluator {
 
         let total_count = db.count_records_for_training(min_games)?;
         let target_count = max_samples.unwrap_or(total_count).min(total_count);
-        println!(
-            "総レコード数: {} (使用: {})",
-            total_count, target_count
-        );
+        println!("総レコード数: {} (使用: {})", total_count, target_count);
 
         if target_count == 0 {
             return Err("学習データが見つかりません".into());
@@ -373,14 +368,27 @@ impl NeuralEvaluator {
                     let board = Board::from_sfen(board_sfen);
                     batch_inputs.push(board.to_vector(None));
 
-                    let white_win_rate = if total_games > 0 { white_wins as f32 / total_games as f32 } else { 0.5 };
-                    let black_win_rate = if total_games > 0 { black_wins as f32 / total_games as f32 } else { 0.5 };
-                    let draw_rate = if total_games > 0 { (total_games - white_wins - black_wins) as f32 / total_games as f32 } else { 0.0 };
+                    let white_win_rate = if total_games > 0 {
+                        white_wins as f32 / total_games as f32
+                    } else {
+                        0.5
+                    };
+                    let black_win_rate = if total_games > 0 {
+                        black_wins as f32 / total_games as f32
+                    } else {
+                        0.5
+                    };
+                    let draw_rate = if total_games > 0 {
+                        (total_games - white_wins - black_wins) as f32 / total_games as f32
+                    } else {
+                        0.0
+                    };
                     batch_targets.push(vec![white_win_rate, black_win_rate, draw_rate]);
                 }
 
                 for batch_start in (0..batch_inputs.len()).step_by(training_config.batch_size) {
-                    let batch_end = (batch_start + training_config.batch_size).min(batch_inputs.len());
+                    let batch_end =
+                        (batch_start + training_config.batch_size).min(batch_inputs.len());
                     let current_batch_size = batch_end - batch_start;
 
                     let (updated_model, loss_value) = Self::process_training_batch(
@@ -397,8 +405,14 @@ impl NeuralEvaluator {
                     batch_count += 1;
                     processed_samples += current_batch_size;
 
-                    if processed_samples % PROGRESS_UPDATE_INTERVAL == 0 || processed_samples >= target_count {
-                        Self::update_progress_display(processed_samples, target_count, &epoch_start_time);
+                    if processed_samples % PROGRESS_UPDATE_INTERVAL == 0
+                        || processed_samples >= target_count
+                    {
+                        Self::update_progress_display(
+                            processed_samples,
+                            target_count,
+                            &epoch_start_time,
+                        );
                     }
                 }
 
@@ -440,7 +454,10 @@ impl NeuralEvaluator {
             eprintln!("最終モデルの保存に失敗しました: {}", e);
         }
 
-        println!("モデル訓練の総時間: {:.2}秒", start_time.elapsed().as_secs_f64());
+        println!(
+            "モデル訓練の総時間: {:.2}秒",
+            start_time.elapsed().as_secs_f64()
+        );
         Ok(())
     }
 

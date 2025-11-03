@@ -43,7 +43,11 @@ pub fn get_default_evaluator() -> SimpleEvaluator {
 }
 
 /// 手がない場合の処理
-pub fn handle_no_moves(evaluator: &dyn Evaluator, board: &Board, color: ColorType) -> EvaluationResult {
+pub fn handle_no_moves(
+    evaluator: &dyn Evaluator,
+    board: &Board,
+    color: ColorType,
+) -> EvaluationResult {
     EvaluationResult {
         score: evaluator.evaluate(board, color),
         best_move: None,
