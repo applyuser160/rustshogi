@@ -1,6 +1,7 @@
 use super::super::board::Board;
 use super::super::color::ColorType;
 use super::super::evaluator::abst::Evaluator;
+use super::super::evaluator::simple::SimpleEvaluator;
 use pyo3::prelude::*;
 
 /// 評価結果を表す構造体
@@ -34,4 +35,22 @@ pub trait SearchStrategy {
         depth: u8,
         evaluator: Option<&dyn Evaluator>,
     ) -> EvaluationResult;
+}
+
+/// デフォルト評価関数の取得
+pub fn get_default_evaluator() -> SimpleEvaluator {
+    SimpleEvaluator::new()
+}
+
+/// 手がない場合の処理
+pub fn handle_no_moves(
+    evaluator: &dyn Evaluator,
+    board: &Board,
+    color: ColorType,
+) -> EvaluationResult {
+    EvaluationResult {
+        score: evaluator.evaluate(board, color),
+        best_move: None,
+        nodes_searched: 1,
+    }
 }
