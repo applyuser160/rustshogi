@@ -15,6 +15,7 @@ use burn::tensor::backend::AutodiffBackend;
 use chrono;
 use pyo3::prelude::*;
 use rand;
+use rayon::prelude::*;
 use std::io::{self, Write};
 use std::path::Path;
 use std::time::Instant;
@@ -361,29 +362,41 @@ impl NeuralEvaluator {
                     break;
                 }
 
-                let mut batch_inputs = Vec::new();
-                let mut batch_targets = Vec::new();
+                // 並列化による前処理
+                let results: Vec<_> = batch_records
+                    .par_iter()
+                    .map(|(board_sfen, white_wins, black_wins, total_games)| {
+                        let board = Board::from_sfen(board_sfen.clone());
+                        let input = board.to_vector(None);
 
-                for (board_sfen, white_wins, black_wins, total_games) in batch_records {
-                    let board = Board::from_sfen(board_sfen);
-                    batch_inputs.push(board.to_vector(None));
+                        let total_games_f = *total_games as f32;
+                        let white_win_rate = if *total_games > 0 {
+                            *white_wins as f32 / total_games_f
+                        } else {
+                            0.5
+                        };
+                        let black_win_rate = if *total_games > 0 {
+                            *black_wins as f32 / total_games_f
+                        } else {
+                            0.5
+                        };
+                        let draw_rate = if *total_games > 0 {
+                            (total_games_f - *white_wins as f32 - *black_wins as f32)
+                                / total_games_f
+                        } else {
+                            0.0
+                        };
 
-                    let white_win_rate = if total_games > 0 {
-                        white_wins as f32 / total_games as f32
-                    } else {
-                        0.5
-                    };
-                    let black_win_rate = if total_games > 0 {
-                        black_wins as f32 / total_games as f32
-                    } else {
-                        0.5
-                    };
-                    let draw_rate = if total_games > 0 {
-                        (total_games - white_wins - black_wins) as f32 / total_games as f32
-                    } else {
-                        0.0
-                    };
-                    batch_targets.push(vec![white_win_rate, black_win_rate, draw_rate]);
+                        (input, vec![white_win_rate, black_win_rate, draw_rate])
+                    })
+                    .collect();
+
+                let mut batch_inputs = Vec::with_capacity(results.len());
+                let mut batch_targets = Vec::with_capacity(results.len());
+
+                for (input, target) in results {
+                    batch_inputs.push(input);
+                    batch_targets.push(target);
                 }
 
                 for batch_start in (0..batch_inputs.len()).step_by(training_config.batch_size) {
