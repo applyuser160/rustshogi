@@ -1,21 +1,50 @@
-# RustShogi
+# 🎌 RustShogi
 
-A Shogi (Japanese Chess) library implemented in Rust with Python bindings for efficient game processing.
+<p align="center">
+  <a href="https://github.com/applyuser160/rustshogi/actions/workflows/CI.yml">
+    <img src="https://github.com/applyuser160/rustshogi/actions/workflows/CI.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
+  </a>
+  <img src="https://img.shields.io/badge/Rust-2021-orange.svg" alt="Rust 2021">
+  <img src="https://img.shields.io/badge/Python-3.8+-blue.svg" alt="Python 3.8+">
+</p>
 
-## Features
+<div align="center">
 
-- High-performance Rust implementation
-- Python bindings support
-- Memory-efficient data structures
-- Complete Shogi rule implementation
+```text
+      ☗
+┌─────────┐
+│   玉    │
+│         │
+└─────────┘
+```
 
-## Installation
+</div>
+
+> Rustで実装された高速な将棋ライブラリ
+
+---
+
+## 🚀 特徴
+
+- ⚡ 高速なRust実装
+- 🐍 Pythonバインディング対応
+- 💾 メモリ効率的なデータ構造
+- ✅ 完全な将棋ルール実装
+
+---
+
+## 📦 インストール
 
 ```bash
 pip install rustshogi
 ```
 
-## Basic Usage
+---
+
+## 💻 クイックスタート
 
 ```python
 import rustshogi
@@ -42,7 +71,10 @@ if is_finished:
     print(f"Game ended: Winner = {winner}")
 ```
 
-### Address Operations
+<details>
+<summary>📚 詳細な使い方を見る</summary>
+
+### アドレス操作
 
 ```python
 # Create an address
@@ -58,7 +90,7 @@ index = address.to_index()
 print(f"Index: {index}")
 ```
 
-### Piece Operations
+### 駒の操作
 
 ```python
 # Create a piece
@@ -73,7 +105,7 @@ piece = rustshogi.Piece.from_char('p')  # White Pawn
 print(f"Piece: {piece}")
 ```
 
-### Move Operations
+### 指し手操作
 
 ```python
 # Create a normal move
@@ -93,7 +125,7 @@ csa_move = rustshogi.Move(csa="3c3d")
 print(f"CSA move: {csa_move}")
 ```
 
-### Board Operations
+### 盤面操作
 
 ```python
 # Create a new board
@@ -124,7 +156,7 @@ if moves:
     print(board)
 ```
 
-### Game Progression
+### ゲーム進行
 
 ```python
 # Create a game
@@ -148,9 +180,9 @@ is_finished, winner = game.is_finished()
 print(f"Game ended: Winner = {winner}")
 ```
 
-## Data Structures
+### データ構造
 
-### ColorType
+#### ColorType
 
 ```python
 rustshogi.ColorType.Black    # Sente (First player)
@@ -158,7 +190,7 @@ rustshogi.ColorType.White    # Gote (Second player)
 rustshogi.ColorType.None     # None
 ```
 
-### PieceType
+#### PieceType
 
 ```python
 rustshogi.PieceType.King      # King
@@ -178,19 +210,33 @@ rustshogi.PieceType.ProLance  # Promoted Lance
 rustshogi.PieceType.ProPawn   # Tokin
 ```
 
-## Performance
+</details>
 
-This library achieves high-speed processing through the following optimizations:
+---
 
-- Efficient board representation using bitboards
-- Memory-efficient data structures (u16 Move representation, etc.)
-- SIMD instruction utilization
-- Zero-cost abstractions
+## 📖 ドキュメント
 
-## License
+詳細なドキュメントはこちら: https://applyuser160.github.io/rustshogi/
 
-This project is released under the MIT License.
+---
 
-## Contributing
+## ⚡ パフォーマンス
 
-Pull requests and issue reports are welcome. If you want to participate in development, please create an issue first and contact us.
+このライブラリは、以下の最適化により高速な処理を実現しています。
+
+- ビットボードによる効率的な盤面表現
+- メモリ効率の良いデータ構造（u16での指し手表現など）
+- SIMD命令の活用
+- ゼロコスト抽象化
+
+---
+
+## 📄 ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。
+
+---
+
+## 🤝 貢献
+
+プルリクエストやイシュー報告を歓迎します。開発に参加したい場合は、まずイシューを作成してご連絡ください。
