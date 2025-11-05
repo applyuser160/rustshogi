@@ -23,7 +23,11 @@ mod tests {
 
         let score = evaluator.evaluate(&board, ColorType::Black);
         // In the initial position, the piece placement is the same for both players, so the evaluation value should be close to 0
-        assert!(score.abs() < 100.0, "The evaluation value of the initial position is abnormal: {}", score);
+        assert!(
+            score.abs() < 100.0,
+            "The evaluation value of the initial position is abnormal: {}",
+            score
+        );
     }
 
     #[test]
@@ -36,7 +40,10 @@ mod tests {
 
         assert!(result.nodes_searched > 0, "No nodes were searched");
         assert!(result.best_move.is_some(), "No best move was found");
-        assert!(result.score.is_finite(), "The evaluation value is not finite");
+        assert!(
+            result.score.is_finite(),
+            "The evaluation value is not finite"
+        );
     }
 
     #[test]
@@ -49,7 +56,10 @@ mod tests {
 
         assert!(result.nodes_searched > 0, "No nodes were searched");
         assert!(result.best_move.is_some(), "No best move was found");
-        assert!(result.score.is_finite(), "The evaluation value is not finite");
+        assert!(
+            result.score.is_finite(),
+            "The evaluation value is not finite"
+        );
     }
 
     #[test]
@@ -149,7 +159,10 @@ mod tests {
 
         // If there are legal moves, the best move will be found
         // If there are no legal moves, an evaluation value will be returned
-        assert!(result.score.is_finite(), "The evaluation value is not finite");
+        assert!(
+            result.score.is_finite(),
+            "The evaluation value is not finite"
+        );
     }
 
     #[test]

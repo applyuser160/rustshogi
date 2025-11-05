@@ -562,8 +562,15 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
                         .format("%H:%M:%S")
                         .to_string();
 
-                    println!("Epoch {}: Batch {}/{} ({:.1}%) - Loss: {:.6} - Speed: {:.0} samples/sec",
-                        epoch, batch_count, total_batches, progress * 100.0, loss_value, samples_per_sec);
+                    println!(
+                        "Epoch {}: Batch {}/{} ({:.1}%) - Loss: {:.6} - Speed: {:.0} samples/sec",
+                        epoch,
+                        batch_count,
+                        total_batches,
+                        progress * 100.0,
+                        loss_value,
+                        samples_per_sec
+                    );
                     println!(
                         "⏱️  Remaining time: {:.1}min - Estimated end: {}",
                         estimated_remaining / 60.0,

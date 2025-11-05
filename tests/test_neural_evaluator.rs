@@ -380,11 +380,20 @@ fn test_generate_random_board_hand_consistency() {
         );
     } else {
         // If there are hand pieces, check that the string is not empty
-        assert!(!parts[1].is_empty(), "The SFEN string is empty even though there are hand pieces");
-        assert_ne!(parts[1], "-", "The SFEN string is '-' even though there are hand pieces");
+        assert!(
+            !parts[1].is_empty(),
+            "The SFEN string is empty even though there are hand pieces"
+        );
+        assert_ne!(
+            parts[1], "-",
+            "The SFEN string is '-' even though there are hand pieces"
+        );
     }
 
-    println!("Total number of hand pieces on the generated board: {}", total_hand_pieces);
+    println!(
+        "Total number of hand pieces on the generated board: {}",
+        total_hand_pieces
+    );
     println!("SFEN: {}", sfen);
 }
 
@@ -479,7 +488,10 @@ fn test_generate_random_board_promoted_pieces() {
         );
 
         let manual_sfen = manual_game.board.to_string();
-        println!("Board with manually placed promoted pieces: {}", manual_sfen);
+        println!(
+            "Board with manually placed promoted pieces: {}",
+            manual_sfen
+        );
 
         // Check that the manually placed promoted pieces are displayed with a '+'
         assert!(
