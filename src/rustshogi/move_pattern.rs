@@ -87,7 +87,7 @@ pub const ROOK_MOVE_PATTERNS: &[MovePattern] = &[
     },
 ];
 
-pub const BICHOP_MOVE_PATTERNS: &[MovePattern] = &[
+pub const BISHOP_MOVE_PATTERNS: &[MovePattern] = &[
     MovePattern {
         move_type: MoveType::Long,
         direction: DirectionName::UpLeft,

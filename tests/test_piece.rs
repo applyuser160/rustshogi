@@ -70,7 +70,7 @@ fn test_piece_from_string_1() {
 fn test_piece_from_string_2() {
     let piece = Piece::from_string("B");
     assert_eq!(piece.owner, ColorType::Black);
-    assert_eq!(piece.piece_type, PieceType::Bichop);
+    assert_eq!(piece.piece_type, PieceType::Bishop);
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn test_piece_get_movetype_1() {
 
 #[test]
 fn test_piece_get_movetype_2() {
-    let result = Piece::get_movetype(PieceType::Bichop);
+    let result = Piece::get_movetype(PieceType::Bishop);
     assert_eq!(result[0], MoveType::None);
     assert_eq!(result[1], MoveType::Long);
     assert_eq!(result[2], MoveType::None);
@@ -114,6 +114,6 @@ fn test_piece_able_pro_1() {
 
 #[test]
 fn test_piece_able_pro_2() {
-    let result = Piece::able_pro(PieceType::Bichop);
+    let result = Piece::able_pro(PieceType::Bishop);
     assert_eq!(result, true);
 }

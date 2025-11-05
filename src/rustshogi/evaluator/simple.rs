@@ -25,7 +25,7 @@ impl SimpleEvaluator {
         piece_values.insert(super::super::piece::PieceType::Dragon, 12.0);
         piece_values.insert(super::super::piece::PieceType::Horse, 11.0);
         piece_values.insert(super::super::piece::PieceType::Rook, 10.0);
-        piece_values.insert(super::super::piece::PieceType::Bichop, 9.0);
+        piece_values.insert(super::super::piece::PieceType::Bishop, 9.0);
         piece_values.insert(super::super::piece::PieceType::Gold, 6.0);
         piece_values.insert(super::super::piece::PieceType::Silver, 5.0);
         piece_values.insert(super::super::piece::PieceType::Knight, 4.0);
@@ -72,7 +72,7 @@ impl Evaluator for SimpleEvaluator {
         for color_type in [ColorType::Black, ColorType::White] {
             for piece_type in [
                 super::super::piece::PieceType::Rook,
-                super::super::piece::PieceType::Bichop,
+                super::super::piece::PieceType::Bishop,
                 super::super::piece::PieceType::Gold,
                 super::super::piece::PieceType::Silver,
                 super::super::piece::PieceType::Knight,
