@@ -337,7 +337,7 @@ fn test_generate_random_board_hand_consistency() {
             PieceType::King,
             PieceType::Gold,
             PieceType::Rook,
-            PieceType::Bichop,
+            PieceType::Bishop,
             PieceType::Silver,
             PieceType::Knight,
             PieceType::Lance,

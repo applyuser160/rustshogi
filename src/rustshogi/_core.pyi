@@ -25,7 +25,7 @@ class PieceType(Enum):
     King = 1
     Gold = 2
     Rook = 3
-    Bichop = 4
+    Bishop = 4
     Silver = 5
     Knight = 6
     Lance = 7

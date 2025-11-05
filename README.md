@@ -187,7 +187,7 @@ rustshogi.ColorType.None     # None
 rustshogi.PieceType.King      # King
 rustshogi.PieceType.Gold      # Gold General
 rustshogi.PieceType.Rook      # Rook
-rustshogi.PieceType.Bichop    # Bishop
+rustshogi.PieceType.Bishop    # Bishop
 rustshogi.PieceType.Silver    # Silver General
 rustshogi.PieceType.Knight    # Knight
 rustshogi.PieceType.Lance     # Lance

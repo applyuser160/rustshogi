@@ -169,7 +169,7 @@ impl Board {
             (8, 1, PieceType::Knight, ColorType::Black),
             (9, 1, PieceType::Lance, ColorType::Black),
             // Black pieces - 2nd rank
-            (2, 2, PieceType::Bichop, ColorType::Black),
+            (2, 2, PieceType::Bishop, ColorType::Black),
             (8, 2, PieceType::Rook, ColorType::Black),
             // Black pieces - 3rd rank (pawns)
             (1, 3, PieceType::Pawn, ColorType::Black),
@@ -192,7 +192,7 @@ impl Board {
             (8, 9, PieceType::Knight, ColorType::White),
             (9, 9, PieceType::Lance, ColorType::White),
             // White pieces - 8th rank
-            (8, 8, PieceType::Bichop, ColorType::White),
+            (8, 8, PieceType::Bishop, ColorType::White),
             (2, 8, PieceType::Rook, ColorType::White),
             // White pieces - 7th rank (pawns)
             (1, 7, PieceType::Pawn, ColorType::White),
@@ -353,7 +353,7 @@ impl Board {
             PieceType::King,
             PieceType::Gold,
             PieceType::Rook,
-            PieceType::Bichop,
+            PieceType::Bishop,
             PieceType::Silver,
             PieceType::Knight,
             PieceType::Lance,
@@ -376,7 +376,7 @@ impl Board {
             PieceType::King,
             PieceType::Gold,
             PieceType::Rook,
-            PieceType::Bichop,
+            PieceType::Bishop,
             PieceType::Silver,
             PieceType::Knight,
             PieceType::Lance,
@@ -413,7 +413,7 @@ impl Board {
             PieceType::King => move_pattern::KING_MOVE_PATTERNS,
             PieceType::Gold => move_pattern::GOLD_MOVE_PATTERNS,
             PieceType::Rook => move_pattern::ROOK_MOVE_PATTERNS,
-            PieceType::Bichop => move_pattern::BICHOP_MOVE_PATTERNS,
+            PieceType::Bishop => move_pattern::BISHOP_MOVE_PATTERNS,
             PieceType::Silver => move_pattern::SILVER_MOVE_PATTERNS,
             PieceType::Knight => move_pattern::KNIGHT_MOVE_PATTERNS,
             PieceType::Lance => move_pattern::LANCE_MOVE_PATTERNS,
@@ -538,7 +538,7 @@ impl Board {
         match piece_type {
             PieceType::Gold => none,
             PieceType::Rook => none,
-            PieceType::Bichop => none,
+            PieceType::Bishop => none,
             PieceType::Silver => none,
             PieceType::Knight => none & last_not_two,
             PieceType::Lance => none & last_not_one,
@@ -643,7 +643,7 @@ impl Board {
                 // Change piece to promoted version
                 let promoted_piece_type = match piece_type {
                     PieceType::Rook => PieceType::Dragon,
-                    PieceType::Bichop => PieceType::Horse,
+                    PieceType::Bishop => PieceType::Horse,
                     PieceType::Silver => PieceType::ProSilver,
                     PieceType::Knight => PieceType::ProKnight,
                     PieceType::Lance => PieceType::ProLance,
@@ -694,7 +694,7 @@ impl Board {
             self.has_specific_piece[PieceType::King as usize],
             self.has_specific_piece[PieceType::Gold as usize],
             self.has_specific_piece[PieceType::Rook as usize],
-            self.has_specific_piece[PieceType::Bichop as usize],
+            self.has_specific_piece[PieceType::Bishop as usize],
             self.has_specific_piece[PieceType::Silver as usize],
             self.has_specific_piece[PieceType::Knight as usize],
             self.has_specific_piece[PieceType::Lance as usize],

@@ -148,7 +148,7 @@ fn benchmark_piece(c: &mut Criterion) {
     let mut group = c.benchmark_group("piece");
     let piece_types = [
         PieceType::Rook,
-        PieceType::Bichop,
+        PieceType::Bishop,
         PieceType::Silver,
         PieceType::Knight,
         PieceType::Lance,
@@ -156,7 +156,7 @@ fn benchmark_piece(c: &mut Criterion) {
         PieceType::King,
         PieceType::Gold,
         PieceType::Rook,
-        PieceType::Bichop,
+        PieceType::Bishop,
         PieceType::Silver,
         PieceType::Knight,
         PieceType::Lance,
