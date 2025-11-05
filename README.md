@@ -1,21 +1,41 @@
-# RustShogi
+# 🎌 RustShogi
 
-A Shogi (Japanese Chess) library implemented in Rust with Python bindings for efficient game processing.
+<p align="center">
+  <a href="https://github.com/applyuser160/rustshogi/actions/workflows/CI.yml">
+    <img src="https://github.com/applyuser160/rustshogi/actions/workflows/CI.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
+  </a>
+  <img src="https://img.shields.io/badge/Rust-2021-orange.svg" alt="Rust 2021">
+  <img src="https://img.shields.io/badge/Python-3.8+-blue.svg" alt="Python 3.8+">
+  <a href="https://pepy.tech/projects/rustshogi"><img src="https://static.pepy.tech/personalized-badge/rustshogi?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=BLUE&left_text=downloads" alt="PyPI Downloads"></a>
+</p>
 
-## Features
+<img src="logo.png">
 
-- High-performance Rust implementation
-- Python bindings support
-- Memory-efficient data structures
-- Complete Shogi rule implementation
+> A high-performance Shogi library implemented in Rust.
 
-## Installation
+---
+
+## 🚀 Features
+
+- ⚡ High-performance Rust implementation
+- 🐍 Python bindings support
+- 💾 Memory-efficient data structures
+- ✅ Complete Shogi rule implementation
+
+---
+
+## 📦 Installation
 
 ```bash
 pip install rustshogi
 ```
 
-## Basic Usage
+---
+
+## 💻 Quick Start
 
 ```python
 import rustshogi
@@ -41,6 +61,9 @@ is_finished, winner = game.is_finished()
 if is_finished:
     print(f"Game ended: Winner = {winner}")
 ```
+
+<details>
+<summary>📚 See Detailed Usage</summary>
 
 ### Address Operations
 
@@ -148,9 +171,9 @@ is_finished, winner = game.is_finished()
 print(f"Game ended: Winner = {winner}")
 ```
 
-## Data Structures
+### Data Structures
 
-### ColorType
+#### ColorType
 
 ```python
 rustshogi.ColorType.Black    # Sente (First player)
@@ -158,7 +181,7 @@ rustshogi.ColorType.White    # Gote (Second player)
 rustshogi.ColorType.None     # None
 ```
 
-### PieceType
+#### PieceType
 
 ```python
 rustshogi.PieceType.King      # King
@@ -178,19 +201,33 @@ rustshogi.PieceType.ProLance  # Promoted Lance
 rustshogi.PieceType.ProPawn   # Tokin
 ```
 
-## Performance
+</details>
+
+---
+
+## 📖 Documentation
+
+See the detailed documentation here: https://applyuser160.github.io/rustshogi/
+
+---
+
+## ⚡ Performance
 
 This library achieves high-speed processing through the following optimizations:
 
 - Efficient board representation using bitboards
-- Memory-efficient data structures (u16 Move representation, etc.)
-- SIMD instruction utilization
+- Memory-efficient data structures (e.g., u16 Move representation)
+- Utilization of SIMD instructions
 - Zero-cost abstractions
 
-## License
+---
+
+## 📄 License
 
 This project is released under the MIT License.
 
-## Contributing
+---
+
+## 🤝 Contributing
 
 Pull requests and issue reports are welcome. If you want to participate in development, please create an issue first and contact us.
