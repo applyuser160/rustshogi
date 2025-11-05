@@ -23,9 +23,9 @@ impl Default for Hand {
 impl Hand {
     fn calc_index(color_type: color::ColorType, piece_type: piece::PieceType) -> u16 {
         if piece_type == piece::PieceType::None {
-            return 0; // 安全なデフォルト値
+            return 0; // Safe default value
         }
-        // PieceType::Noneを除外したインデックス計算
+        // Index calculation excluding PieceType::None
         let piece_index = match piece_type {
             piece::PieceType::King => 0,
             piece::PieceType::Gold => 1,
@@ -35,7 +35,7 @@ impl Hand {
             piece::PieceType::Knight => 5,
             piece::PieceType::Lance => 6,
             piece::PieceType::Pawn => 7,
-            _ => 0, // 安全なデフォルト値
+            _ => 0, // Safe default value
         };
         color_type as u16 * piece::NOT_PRO_PIECE_TYPE_NUMBER as u16 + piece_index as u16
     }
@@ -94,11 +94,11 @@ impl Hand {
         self.counts[index as usize] = self.counts[index as usize].saturating_sub(1);
     }
 
-    /// 持ち駒をベクター形式で返す
+    /// Returns the hand pieces in vector format
     pub fn to_vector(&self) -> Vec<f32> {
         let mut features = Vec::with_capacity(16);
 
-        // 各色、各駒種の枚数をベクターに追加
+        // Add the number of pieces of each color and type to the vector
         for color in [color::ColorType::Black, color::ColorType::White] {
             for piece_type in [
                 piece::PieceType::King,

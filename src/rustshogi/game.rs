@@ -178,7 +178,7 @@ impl Game {
                 .collect()
         });
 
-        // 結果を各MctsResultに集計
+        // Aggregate results into each MctsResult
         for (winner, move_index) in simulation_results {
             results[move_index].plus_result(winner);
         }

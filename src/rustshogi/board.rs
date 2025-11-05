@@ -156,9 +156,9 @@ impl Board {
     }
 
     pub fn startpos(&mut self) {
-        // 初期配置: (column, row, piece_type, color)
+        // Initial position: (column, row, piece_type, color)
         let positions = [
-            // 黒の駒 - 1段目
+            // Black pieces - 1st rank
             (1, 1, PieceType::Lance, ColorType::Black),
             (2, 1, PieceType::Knight, ColorType::Black),
             (3, 1, PieceType::Silver, ColorType::Black),
@@ -168,10 +168,10 @@ impl Board {
             (7, 1, PieceType::Silver, ColorType::Black),
             (8, 1, PieceType::Knight, ColorType::Black),
             (9, 1, PieceType::Lance, ColorType::Black),
-            // 黒の駒 - 2段目
+            // Black pieces - 2nd rank
             (2, 2, PieceType::Bichop, ColorType::Black),
             (8, 2, PieceType::Rook, ColorType::Black),
-            // 黒の駒 - 3段目（歩）
+            // Black pieces - 3rd rank (pawns)
             (1, 3, PieceType::Pawn, ColorType::Black),
             (2, 3, PieceType::Pawn, ColorType::Black),
             (3, 3, PieceType::Pawn, ColorType::Black),
@@ -181,7 +181,7 @@ impl Board {
             (7, 3, PieceType::Pawn, ColorType::Black),
             (8, 3, PieceType::Pawn, ColorType::Black),
             (9, 3, PieceType::Pawn, ColorType::Black),
-            // 白の駒 - 9段目
+            // White pieces - 9th rank
             (1, 9, PieceType::Lance, ColorType::White),
             (2, 9, PieceType::Knight, ColorType::White),
             (3, 9, PieceType::Silver, ColorType::White),
@@ -191,10 +191,10 @@ impl Board {
             (7, 9, PieceType::Silver, ColorType::White),
             (8, 9, PieceType::Knight, ColorType::White),
             (9, 9, PieceType::Lance, ColorType::White),
-            // 白の駒 - 8段目
+            // White pieces - 8th rank
             (8, 8, PieceType::Bichop, ColorType::White),
             (2, 8, PieceType::Rook, ColorType::White),
-            // 白の駒 - 7段目（歩）
+            // White pieces - 7th rank (pawns)
             (1, 7, PieceType::Pawn, ColorType::White),
             (2, 7, PieceType::Pawn, ColorType::White),
             (3, 7, PieceType::Pawn, ColorType::White),
@@ -235,15 +235,15 @@ impl Board {
                     column += empty_spaces;
                 } else {
                     let piece_str = if ch == '+' {
-                        // 成ったコマの場合、+と次の文字を組み合わせる
+                        // For promoted pieces, combine '+' with the next character
                         if let Some(next_ch) = chars.next() {
                             format!("+{}", next_ch)
                         } else {
-                            // +の後に文字がない場合はエラーとして処理
+                            // Treat as an error if there is no character after '+'
                             continue;
                         }
                     } else {
-                        // 通常のコマの場合
+                        // For regular pieces
                         ch.to_string()
                     };
 
@@ -319,7 +319,7 @@ impl Board {
     pub fn to_string(&self) -> String {
         let mut result = String::new();
 
-        // 盤面部分
+        // Board part
         for row in (1..=LENGTH_OF_EDGE).rev() {
             if row < 9 {
                 result.push('/');
@@ -344,11 +344,11 @@ impl Board {
             }
         }
 
-        // 持ち駒部分
+        // Hand part
         result.push(' ');
         let mut hand_str = String::new();
 
-        // 先手（黒）の持ち駒
+        // Black's hand pieces
         for piece_type in [
             PieceType::King,
             PieceType::Gold,
@@ -371,7 +371,7 @@ impl Board {
             }
         }
 
-        // 後手（白）の持ち駒
+        // White's hand pieces
         for piece_type in [
             PieceType::King,
             PieceType::Gold,
@@ -606,7 +606,7 @@ impl Board {
             }));
         }
 
-        // キャッシュに保存
+        // Save to cache
         if use_cache {
             let mut cache = MOVE_CACHE.lock().unwrap();
             cache.put((self.clone(), color), vector_move.clone());
@@ -634,13 +634,13 @@ impl Board {
         if is_drop {
             self.move_from_hand(to_index, piece.piece_type, piece.owner);
         } else {
-            // 成る手の場合は駒を成り駒に変更
+            // If it's a promotion move, change the piece to its promoted version
             if moves.get_is_promote() {
                 let piece_type = self.get_piece_type_from_index(from_index);
                 let color_type = self.get_color_type_from_index(from_index);
                 self.drop(from_index);
 
-                // 駒を成り駒に変更
+                // Change piece to promoted version
                 let promoted_piece_type = match piece_type {
                     PieceType::Rook => PieceType::Dragon,
                     PieceType::Bichop => PieceType::Horse,
@@ -648,7 +648,7 @@ impl Board {
                     PieceType::Knight => PieceType::ProKnight,
                     PieceType::Lance => PieceType::ProLance,
                     PieceType::Pawn => PieceType::ProPawn,
-                    _ => piece_type, // 成れない駒の場合はそのまま
+                    _ => piece_type, // If the piece cannot be promoted, it remains the same
                 };
 
                 self.deploy(to_index, promoted_piece_type, color_type);
@@ -680,10 +680,10 @@ impl Board {
     }
 
     pub fn to_vector(&self, target_dimensions: Option<usize>) -> Vec<f32> {
-        // 全特徴量を取得
+        // Get all features
         let mut features = Vec::with_capacity(2320);
 
-        // 基本盤面情報 (2304次元) - 各マスについて全てのBitBoardの値を連続配置
+        // Basic board information (2304 dimensions) - Sequentially arrange all BitBoard values for each square
         let mut board_vector = [0f32; 2304];
 
         let bitboards = [
@@ -707,7 +707,7 @@ impl Board {
             self.has_specific_piece[PieceType::ProPawn as usize],
         ];
 
-        // 各マス（index）について、そのマスに関連する全てのBitBoardの値を連続配置
+        // For each square (index), sequentially arrange all BitBoard values related to that square
         for index in 0..128 {
             let mut bitboard_offset = 0;
             for bitboard in &bitboards {
@@ -724,16 +724,16 @@ impl Board {
 
         features.extend_from_slice(&board_vector);
 
-        // 持ち駒情報 (16次元: 2色 × 8駒種)
+        // Hand piece information (16 dimensions: 2 colors × 8 piece types)
         let hand_features = self.hand.to_vector();
         features.extend_from_slice(&hand_features);
 
-        // 合計: 2304 + 16 = 2320次元
+        // Total: 2304 + 16 = 2320 dimensions
 
-        // 次元圧縮が必要な場合
+        // If dimensionality reduction is needed
         if let Some(target_dims) = target_dimensions {
             if target_dims < features.len() {
-                // PCAによる次元圧縮
+                // Dimensionality reduction by PCA
                 return apply_pca_compression(&features, target_dims);
             }
         }

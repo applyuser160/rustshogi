@@ -3,7 +3,7 @@ use super::super::color::ColorType;
 use super::abst::Evaluator;
 use pyo3::prelude::*;
 
-/// 簡易評価関数（駒の価値のみを使用）
+/// Simple evaluation function (uses only piece values)
 #[pyclass]
 #[derive(Debug, Clone)]
 pub struct SimpleEvaluator {
@@ -49,7 +49,7 @@ impl Evaluator for SimpleEvaluator {
     fn evaluate(&self, board: &Board, color: ColorType) -> f32 {
         let mut score = 0.0;
 
-        // 盤上の駒を評価
+        // Evaluate pieces on the board
         for row in 1..=9 {
             for col in 1..=9 {
                 let address = super::super::address::Address::from_numbers(col, row);
@@ -68,7 +68,7 @@ impl Evaluator for SimpleEvaluator {
             }
         }
 
-        // 持ち駒を評価
+        // Evaluate pieces in hand
         for color_type in [ColorType::Black, ColorType::White] {
             for piece_type in [
                 super::super::piece::PieceType::Rook,
