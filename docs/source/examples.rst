@@ -1,10 +1,10 @@
-例
-==
+Examples
+========
 
-このセクションでは、rustshogiを使用した実用的な例を紹介します。
+This section introduces practical examples using rustshogi.
 
-基本的な対局
-===========
+Basic Game
+==========
 
 .. code-block:: python
 
@@ -12,295 +12,295 @@
    import random
 
    def random_game():
-       """ランダムな対局を実行"""
+       """Executes a random game"""
        board = Board("startpos")
 
        while True:
            is_finished, winner = board.is_finished()
            if is_finished:
-               print(f"ゲーム終了: 勝者 {winner}")
+               print(f"Game over: Winner {winner}")
                break
 
-           # 現在の手番を決定
+           # Determine the current turn
            current_color = ColorType.Black if board.move_count % 2 == 0 else ColorType.White
            legal_moves = board.search_moves(current_color)
 
            if not legal_moves:
-               print("合法手がありません")
+               print("No legal moves available")
                break
 
-           # ランダムに手を選択
+           # Choose a move randomly
            move = random.choice(legal_moves)
            board.execute_move(move)
 
-           print(f"手数 {board.move_count}: {move}")
+           print(f"Move {board.move_count}: {move}")
            print(board)
            print("-" * 40)
 
        return board
 
-駒の配置と移動
-=============
+Piece Placement and Movement
+============================
 
 .. code-block:: python
 
    from rustshogi import Board, Address, PieceType, ColorType
 
    def piece_placement_example():
-       """駒の配置と移動の例"""
+       """Example of piece placement and movement"""
        board = Board("startpos")
 
-       # 特定の位置に駒を配置
-       address = Address(5, 5)  # 5五の位置
+       # Place a piece at a specific position
+       address = Address(5, 5)  # Position 5e
        board.deploy(address, PieceType.Pawn, ColorType.Black)
 
-       # 配置された駒を確認
+       # Check the placed piece
        piece = board.get_piece(address)
-       print(f"5五の駒: {piece}")
+       print(f"Piece at 5e: {piece}")
 
-       # 駒の移動
+       # Move a piece
        legal_moves = board.search_moves(ColorType.Black)
        if legal_moves:
            move = legal_moves[0]
-           print(f"実行する手: {move}")
+           print(f"Executing move: {move}")
            board.execute_move(move)
 
        return board
 
-局面の解析
-==========
+Position Analysis
+=================
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, Address
 
    def analyze_position():
-       """局面の詳細な解析"""
+       """Detailed analysis of a position"""
        board = Board("startpos")
 
-       print("=== 局面解析 ===")
-       print(f"盤面状態:")
+       print("=== Position Analysis ===")
+       print(f"Board state:")
        print(board)
 
-       # 先手と後手の合法手を比較
+       # Compare legal moves for Black and White
        black_moves = board.search_moves(ColorType.Black)
        white_moves = board.search_moves(ColorType.White)
 
-       print(f"先手の合法手数: {len(black_moves)}")
-       print(f"後手の合法手数: {len(white_moves)}")
+       print(f"Number of legal moves for Black: {len(black_moves)}")
+       print(f"Number of legal moves for White: {len(white_moves)}")
 
-       # 各合法手の詳細
-       print("\n=== 先手の合法手 ===")
-       for i, move in enumerate(black_moves[:5]):  # 最初の5手のみ
+       # Details of each legal move
+       print("\n=== Legal moves for Black ===")
+       for i, move in enumerate(black_moves[:5]):  # First 5 moves only
            print(f"{i+1}. {move}")
-           print(f"   移動元: {move.get_from()}")
-           print(f"   移動先: {move.get_to()}")
-           print(f"   駒: {move.get_piece()}")
-           print(f"   成り: {move.is_promote()}")
-           print(f"   打ち駒: {move.is_drop()}")
+           print(f"   From: {move.get_from()}")
+           print(f"   To: {move.get_to()}")
+           print(f"   Piece: {move.get_piece()}")
+           print(f"   Is Promote: {move.is_promote()}")
+           print(f"   Is Drop: {move.is_drop()}")
 
-       # ゲーム終了判定
+       # Check for game end
        is_finished, winner = board.is_finished()
        if is_finished:
-           print(f"\nゲーム終了: 勝者 {winner}")
+           print(f"\nGame over: Winner {winner}")
        else:
-           print("\nゲーム継続中")
+           print("\nGame in progress")
 
-持ち駒の管理
-===========
+Hand Management
+===============
 
 .. code-block:: python
 
    from rustshogi import Hand, Piece, ColorType, PieceType
 
    def hand_management_example():
-       """持ち駒の管理例"""
-       # 空の持ち駒を作成
+       """Example of hand management"""
+       # Create an empty hand
        hand = Hand([], [])
 
-       # 駒を追加
+       # Add a piece
        hand.add_piece(ColorType.Black, PieceType.Pawn)
-       hand.add_pieces(ColorType.Black, PieceType.Pawn, 3)  # 歩を3枚追加
+       hand.add_pieces(ColorType.Black, PieceType.Pawn, 3)  # Add 3 Pawns
 
-       # 持ち駒を確認
+       # Check the hand
        black_pieces = hand.get_player_pieces(ColorType.Black)
-       print(f"先手の持ち駒: {black_pieces}")
+       print(f"Black's hand: {black_pieces}")
 
-       # 駒を減らす
+       # Remove a piece
        hand.decrease_piece(ColorType.Black, PieceType.Pawn)
 
-       # 更新後の持ち駒を確認
+       # Check the updated hand
        black_pieces = hand.get_player_pieces(ColorType.Black)
-       print(f"更新後の先手の持ち駒: {black_pieces}")
+       print(f"Updated Black's hand: {black_pieces}")
 
        return hand
 
-Gameクラスの使用
-==============
+Using the Game Class
+====================
 
 .. code-block:: python
 
    from rustshogi import Game, Board, ColorType, Move
 
    def game_management_example():
-       """Gameクラスを使用した対局管理例"""
-       # 初期局面でゲームを作成
+       """Example of game management using the Game class"""
+       # Create a game with an initial position
        board = Board("startpos")
        game = Game(board=board, move_number=1, turn=ColorType.Black)
 
-       print("=== ゲーム開始 ===")
-       print(f"手数: {game.move_number}")
-       print(f"手番: {game.turn}")
+       print("=== Game Start ===")
+       print(f"Move number: {game.move_number}")
+       print(f"Turn: {game.turn}")
 
-       # 手を実行
+       # Execute a move
        legal_moves = board.search_moves(ColorType.Black)
        if legal_moves:
            move = legal_moves[0]
            game.execute_move(move)
-           print(f"実行した手: {move}")
+           print(f"Executed move: {move}")
 
-       # ゲーム終了判定
+       # Check for game end
        is_finished, winner = game.is_finished()
        if is_finished:
-           print(f"ゲーム終了: 勝者 {winner}")
+           print(f"Game over: Winner {winner}")
        else:
-           print("ゲーム継続中")
+           print("Game in progress")
 
-       # ランダム対局の実行
-       random_game = game.random_play()
-       print(f"ランダム対局の結果: {random_game}")
+       # Run a random game
+       random_game_result = game.random_play()
+       print(f"Result of random game: {random_game_result}")
 
        return game
 
-評価関数の使用
-=============
+Using Evaluation Functions
+==========================
 
-SimpleEvaluator（簡易評価関数）
---------------------------------
+SimpleEvaluator
+---------------
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, SimpleEvaluator
 
    def simple_evaluator_example():
-       """SimpleEvaluatorを使用した局面評価の例"""
+       """Example of position evaluation using SimpleEvaluator"""
        board = Board("startpos")
        evaluator = SimpleEvaluator()
 
-       # 先手の視点で局面を評価
+       # Evaluate the position from Black's perspective
        score = evaluator.evaluate(board, ColorType.Black)
-       print(f"先手の評価値: {score}")
+       print(f"Evaluation for Black: {score}")
 
-       # 後手の視点で局面を評価
+       # Evaluate the position from White's perspective
        score = evaluator.evaluate(board, ColorType.White)
-       print(f"後手の評価値: {score}")
+       print(f"Evaluation for White: {score}")
 
        return evaluator
 
-NeuralEvaluator（ニューラルネットワーク評価関数）
-------------------------------------------------
+NeuralEvaluator (Neural Network Evaluator)
+------------------------------------------
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, NeuralEvaluator
 
    def neural_evaluator_example():
-       """NeuralEvaluatorを使用した局面評価の例"""
-       # データベースとモデルパスを指定してNeuralEvaluatorを作成
+       """Example of position evaluation using NeuralEvaluator"""
+       # Create a NeuralEvaluator with database and model path
        evaluator = NeuralEvaluator(
            db_type_str="sqlite",
            connection_string="training.db",
            model_path="model.mpk"
        )
 
-       # データベースを初期化（初回のみ）
+       # Initialize the database (only on the first run)
        evaluator.init_database()
 
-       # ランダム盤面を生成してデータベースに保存
+       # Generate and save random boards to the database
        evaluator.generate_and_save_random_boards(1000)
 
-       # 盤面を評価
+       # Evaluate a position
        board = Board("startpos")
        score = evaluator.evaluate(board, ColorType.Black)
-       print(f"評価値: {score}")
+       print(f"Evaluation: {score}")
 
-       # 特定の局面の勝率を予測
+       # Predict the win rate for a specific position
        white_win_rate, black_win_rate, draw_rate = evaluator.evaluate_position(board)
-       print(f"白勝率: {white_win_rate:.2%}")
-       print(f"黒勝率: {black_win_rate:.2%}")
-       print(f"引き分け率: {draw_rate:.2%}")
+       print(f"White win rate: {white_win_rate:.2%}")
+       print(f"Black win rate: {black_win_rate:.2%}")
+       print(f"Draw rate: {draw_rate:.2%}")
 
        return evaluator
 
-探索エンジンの使用
-================
+Using the Search Engine
+=======================
 
-基本的な探索
------------
+Basic Search
+------------
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, SearchEngine, SimpleEvaluator
 
    def basic_search_example():
-       """基本的な探索の例"""
+       """Example of a basic search"""
        board = Board("startpos")
        
-       # デフォルトの探索エンジンを作成（MinMax、SimpleEvaluatorを使用）
+       # Create a default search engine (uses MinMax and SimpleEvaluator)
        engine = SearchEngine()
 
-       # 深度3で探索を実行
+       # Execute a search with depth 3
        result = engine.search(board, ColorType.Black, depth=3)
        
-       print(f"評価値: {result.score}")
-       print(f"最善手: {result.best_move}")
-       print(f"探索ノード数: {result.nodes_searched}")
+       print(f"Evaluation: {result.score}")
+       print(f"Best move: {result.best_move}")
+       print(f"Nodes searched: {result.nodes_searched}")
 
-       # 最善手を実行
+       # Execute the best move
        if result.best_move:
            board.execute_move(result.best_move)
-           print(f"実行した手: {result.best_move}")
+           print(f"Executed move: {result.best_move}")
 
        return engine
 
-AlphaBeta探索の使用
------------------
+Using AlphaBeta Search
+----------------------
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, SearchEngine
 
    def alphabeta_search_example():
-       """AlphaBeta探索を使用した例"""
+       """Example using AlphaBeta search"""
        board = Board("startpos")
 
-       # AlphaBeta探索を使用して探索エンジンを作成
+       # Create a search engine using AlphaBeta search
        engine = SearchEngine(
            algorithm="alphabeta",
-           max_nodes=1000000  # 最大探索ノード数
+           max_nodes=1000000  # Maximum number of nodes to search
        )
 
-       # 深度4で探索を実行
+       # Execute a search with depth 4
        result = engine.search(board, ColorType.Black, depth=4)
        
-       print(f"評価値: {result.score}")
-       print(f"最善手: {result.best_move}")
-       print(f"探索ノード数: {result.nodes_searched}")
+       print(f"Evaluation: {result.score}")
+       print(f"Best move: {result.best_move}")
+       print(f"Nodes searched: {result.nodes_searched}")
 
        return engine
 
-カスタム評価関数を使用した探索
------------------------------
+Search with a Custom Evaluator
+------------------------------
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, SearchEngine, SimpleEvaluator, NeuralEvaluator
 
    def custom_evaluator_search_example():
-       """カスタム評価関数を使用した探索の例"""
+       """Example of search with a custom evaluator"""
        board = Board("startpos")
 
-       # SimpleEvaluatorを使用
+       # Using SimpleEvaluator
        simple_evaluator = SimpleEvaluator()
        engine = SearchEngine(
            algorithm="alphabeta",
@@ -309,9 +309,9 @@ AlphaBeta探索の使用
        )
 
        result = engine.search(board, ColorType.Black, depth=3)
-       print(f"SimpleEvaluatorでの評価値: {result.score}")
+       print(f"Evaluation with SimpleEvaluator: {result.score}")
 
-       # NeuralEvaluatorを使用（モデルが存在する場合）
+       # Using NeuralEvaluator (if model exists)
        neural_evaluator = NeuralEvaluator(
            db_type_str="sqlite",
            connection_string="training.db",
@@ -324,22 +324,22 @@ AlphaBeta探索の使用
        )
 
        result_neural = engine_neural.search(board, ColorType.Black, depth=3)
-       print(f"NeuralEvaluatorでの評価値: {result_neural.score}")
+       print(f"Evaluation with NeuralEvaluator: {result_neural.score}")
 
        return engine
 
-自動対局システム
-==============
+Automated Game System
+=====================
 
-評価関数と探索を使用した自動対局
---------------------------------
+Automated Game using Evaluation and Search
+------------------------------------------
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, SearchEngine, SimpleEvaluator
 
    def auto_game_example():
-       """評価関数と探索を使用した自動対局の例"""
+       """Example of an automated game using evaluation and search"""
        board = Board("startpos")
        engine = SearchEngine(
            algorithm="alphabeta",
@@ -352,26 +352,26 @@ AlphaBeta探索の使用
        max_moves = 50
 
        while move_count < max_moves:
-           # ゲーム終了判定
+           # Check for game end
            is_finished, winner = board.is_finished()
            if is_finished:
-               print(f"ゲーム終了: 勝者 {winner}")
+               print(f"Game over: Winner {winner}")
                break
 
-           # 探索を実行して最善手を取得
+           # Execute search to get the best move
            result = engine.search(board, current_color, depth=3)
            
            if result.best_move:
                board.execute_move(result.best_move)
                move_count += 1
-               print(f"手数 {move_count}: {result.best_move} (評価値: {result.score:.2f})")
+               print(f"Move {move_count}: {result.best_move} (Evaluation: {result.score:.2f})")
                print(board)
                print("-" * 40)
            else:
-               print("合法手がありません")
+               print("No legal moves available")
                break
 
-           # 手番を交代
+           # Switch turns
            current_color = ColorType.White if current_color == ColorType.Black else ColorType.Black
 
        return board

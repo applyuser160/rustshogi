@@ -8,13 +8,23 @@
 
 import os
 import sys
+import re
 
 sys.path.insert(0, os.path.abspath("../../src"))
 
 project = "rustshogi"
 copyright = "2025, applyuser160"
 author = "applyuser160"
-release = "0.1.0"
+
+# Read the version from Cargo.toml
+cargo_toml_path = os.path.join(os.path.dirname(__file__), '../../Cargo.toml')
+with open(cargo_toml_path, 'r', encoding='utf-8') as f:
+    cargo_content = f.read()
+    version_match = re.search(r'^version\s*=\s*"([^"]+)"', cargo_content, re.MULTILINE)
+    if version_match:
+        release = version_match.group(1)
+    else:
+        release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -30,7 +40,7 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = []  # type: ignore
 
-language = "ja"
+language = "en"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

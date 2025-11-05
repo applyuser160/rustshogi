@@ -1,200 +1,196 @@
 # RustShogi
 
-Rustで実装された将棋ライブラリ
+A Shogi (Japanese Chess) library implemented in Rust with Python bindings for efficient game processing.
 
-## 特徴
+## Features
 
-- 高速なRust実装
-- Pythonバインディング対応
-- メモリ効率的なデータ構造
-- 完全な将棋ルール実装
+- High-performance Rust implementation
+- Python bindings support
+- Memory-efficient data structures
+- Complete Shogi rule implementation
 
-## インストール
+## Installation
 
 ```bash
 pip install rustshogi
 ```
 
-## 基本的な使い方
+## Basic Usage
 
 ```python
 import rustshogi
 
-# 新しいゲームを作成
+# Create a new game
 game = rustshogi.Game()
 
-# 盤面の状態を表示
+# Display board state
 print(game.board)
 
-# 可能な手を検索
+# Search for possible moves
 moves = game.board.search_moves(rustshogi.ColorType.Black)
-print(f"可能な手の数: {len(moves)}")
+print(f"Number of possible moves: {len(moves)}")
 
-# 手を実行
+# Execute a move
 if moves:
     game.execute_move(moves[0])
-    print("手を実行しました")
+    print("Move executed")
     print(game.board)
 
-# ゲーム終了判定
+# Check game end
 is_finished, winner = game.is_finished()
 if is_finished:
-    print(f"ゲーム終了: 勝者 = {winner}")
+    print(f"Game ended: Winner = {winner}")
 ```
 
-### アドレスの操作
+### Address Operations
 
 ```python
-# アドレスを作成
-address = rustshogi.Address(3, 4)  # 3列4行
-print(f"アドレス: {address}")
+# Create an address
+address = rustshogi.Address(3, 4)  # Column 3, Row 4
+print(f"Address: {address}")
 
-# 文字列からアドレスを作成
+# Create address from string
 address = rustshogi.Address.from_string("3d")
-print(f"アドレス: {address}")
+print(f"Address: {address}")
 
-# インデックスに変換
+# Convert to index
 index = address.to_index()
-print(f"インデックス: {index}")
+print(f"Index: {index}")
 ```
 
-### 駒の操作
+### Piece Operations
 
 ```python
-# 駒を作成
+# Create a piece
 piece = rustshogi.Piece(rustshogi.ColorType.Black, rustshogi.PieceType.King)
-print(f"駒: {piece}")
+print(f"Piece: {piece}")
 
-# 文字から駒を作成
-piece = rustshogi.Piece.from_char('K')  # 黒の王
-print(f"駒: {piece}")
+# Create piece from character
+piece = rustshogi.Piece.from_char('K')  # Black King
+print(f"Piece: {piece}")
 
-piece = rustshogi.Piece.from_char('p')  # 白の歩
-print(f"駒: {piece}")
+piece = rustshogi.Piece.from_char('p')  # White Pawn
+print(f"Piece: {piece}")
 ```
 
-### 手の操作
+### Move Operations
 
 ```python
-# 通常の手を作成
+# Create a normal move
 from_addr = rustshogi.Address(3, 3)
 to_addr = rustshogi.Address(3, 4)
 move = rustshogi.Move(from_address=from_addr, to_address=to_addr, promote=False)
-print(f"手: {move}")
+print(f"Move: {move}")
 
-# ドロップ手を作成
+# Create a drop move
 piece = rustshogi.Piece.from_char('p')
 to_addr = rustshogi.Address(3, 4)
 drop_move = rustshogi.Move(piece=piece, to_address=to_addr)
-print(f"ドロップ手: {drop_move}")
+print(f"Drop move: {drop_move}")
 
-# CSA形式から手を作成
+# Create move from CSA format
 csa_move = rustshogi.Move(csa="3c3d")
-print(f"CSA手: {csa_move}")
+print(f"CSA move: {csa_move}")
 ```
 
-### 盤面の操作
+### Board Operations
 
 ```python
-# 新しい盤面を作成
+# Create a new board
 board = rustshogi.Board()
 
-# 初期配置を設定
+# Set initial position
 board.startpos()
-print("初期配置:")
+print("Initial position:")
 print(board)
 
-# 駒を配置
+# Deploy a piece
 piece = rustshogi.Piece(rustshogi.ColorType.Black, rustshogi.PieceType.King)
 address = rustshogi.Address(5, 1)
 board.deploy(address, piece.piece_type, piece.owner)
 
-# 特定の位置の駒を取得
+# Get piece at specific position
 piece_at_pos = board.get_piece(address)
-print(f"位置{address}の駒: {piece_at_pos}")
+print(f"Piece at {address}: {piece_at_pos}")
 
-# 可能な手を検索
+# Search for possible moves
 moves = board.search_moves(rustshogi.ColorType.Black)
-print(f"黒の可能な手: {len(moves)}手")
+print(f"Black's possible moves: {len(moves)} moves")
 
-# 手を実行
+# Execute a move
 if moves:
     board.execute_move(moves[0])
-    print("手を実行後の盤面:")
+    print("Board after move execution:")
     print(board)
 ```
 
-### ゲームの進行
+### Game Progression
 
 ```python
-# ゲームを作成
+# Create a game
 game = rustshogi.Game()
 
-# ランダムプレイ
+# Random play
 result = game.random_play()
-print(f"ランダムプレイ結果: 勝者 = {result.winner}")
+print(f"Random play result: Winner = {result.winner}")
 
-# 手動でゲームを進行
+# Manual game progression
 game = rustshogi.Game()
 while not game.is_finished()[0]:
     moves = game.board.search_moves(game.turn)
     if moves:
-        # 最初の手を選択
+        # Select the first move
         game.execute_move(moves[0])
     else:
         break
 
 is_finished, winner = game.is_finished()
-print(f"ゲーム終了: 勝者 = {winner}")
+print(f"Game ended: Winner = {winner}")
 ```
 
-## ドキュメント
-
-https://applyuser160.github.io/rustshogi/
-
-## データ構造
+## Data Structures
 
 ### ColorType
 
 ```python
-rustshogi.ColorType.Black    # 先手
-rustshogi.ColorType.White    # 後手
-rustshogi.ColorType.None     # なし
+rustshogi.ColorType.Black    # Sente (First player)
+rustshogi.ColorType.White    # Gote (Second player)
+rustshogi.ColorType.None     # None
 ```
 
 ### PieceType
 
 ```python
-rustshogi.PieceType.King      # 王
-rustshogi.PieceType.Gold      # 金
-rustshogi.PieceType.Rook      # 飛車
-rustshogi.PieceType.Bichop    # 角
-rustshogi.PieceType.Silver    # 銀
-rustshogi.PieceType.Knight    # 桂
-rustshogi.PieceType.Lance     # 香
-rustshogi.PieceType.Pawn      # 歩
-# 成駒
-rustshogi.PieceType.Dragon    # 龍
-rustshogi.PieceType.Horse     # 馬
-rustshogi.PieceType.ProSilver # 成銀
-rustshogi.PieceType.ProKnight # 成桂
-rustshogi.PieceType.ProLance  # 成香
-rustshogi.PieceType.ProPawn   # と
+rustshogi.PieceType.King      # King
+rustshogi.PieceType.Gold      # Gold General
+rustshogi.PieceType.Rook      # Rook
+rustshogi.PieceType.Bichop    # Bishop
+rustshogi.PieceType.Silver    # Silver General
+rustshogi.PieceType.Knight    # Knight
+rustshogi.PieceType.Lance     # Lance
+rustshogi.PieceType.Pawn      # Pawn
+# Promoted pieces
+rustshogi.PieceType.Dragon    # Dragon King
+rustshogi.PieceType.Horse     # Dragon Horse
+rustshogi.PieceType.ProSilver # Promoted Silver
+rustshogi.PieceType.ProKnight # Promoted Knight
+rustshogi.PieceType.ProLance  # Promoted Lance
+rustshogi.PieceType.ProPawn   # Tokin
 ```
 
-## パフォーマンス
+## Performance
 
-このライブラリは以下の最適化により高速な処理を実現しています：
+This library achieves high-speed processing through the following optimizations:
 
-- ビットボードによる効率的な盤面表現
-- メモリ効率的なデータ構造（u16によるMove表現など）
-- SIMD命令の活用
-- ゼロコスト抽象化
+- Efficient board representation using bitboards
+- Memory-efficient data structures (u16 Move representation, etc.)
+- SIMD instruction utilization
+- Zero-cost abstractions
 
-## ライセンス
+## License
 
-このプロジェクトはMITライセンスの下で公開されています。
+This project is released under the MIT License.
 
-## 貢献
+## Contributing
 
-プルリクエストやイシューの報告を歓迎します。開発に参加したい場合は、まずイシューを作成してご連絡ください。
+Pull requests and issue reports are welcome. If you want to participate in development, please create an issue first and contact us.
