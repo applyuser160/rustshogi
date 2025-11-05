@@ -12,17 +12,7 @@
   <a href="https://pepy.tech/projects/rustshogi"><img src="https://static.pepy.tech/personalized-badge/rustshogi?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=BLUE&left_text=downloads" alt="PyPI Downloads"></a>
 </p>
 
-<div align="center">
-
-```text
-      ☗
-┌─────────┐
-│   King  │
-│         │
-└─────────┘
-```
-
-</div>
+<img src="logo.png">
 
 > A high-performance Shogi library implemented in Rust.
 
