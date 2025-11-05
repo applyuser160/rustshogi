@@ -1,12 +1,12 @@
-rustshogi ドキュメント
+rustshogi Documentation
 ========================
 
-rustshogiは、Rustで実装された高性能な将棋ライブラリです。
-Pythonバインディングを通じて、Pythonアプリケーションから利用できます。
+rustshogi is a high-performance shogi library implemented in Rust.
+It can be used from Python applications through Python bindings.
 
 .. toctree::
    :maxdepth: 2
-   :caption: 目次:
+   :caption: Contents:
 
    installation
    quickstart
@@ -14,55 +14,55 @@ Pythonバインディングを通じて、Pythonアプリケーションから�
    examples
    changelog
 
-機能
-----
+Features
+--------
 
-* 高速な将棋盤の表現と操作
-* 合法手の生成と検索
-* 駒の配置と移動
-* 持ち駒の管理
-* ゲーム状態の管理
-* Pythonバインディング
+* Fast shogi board representation and manipulation
+* Legal move generation and search
+* Piece placement and movement
+* Hand piece management
+* Game state management
+* Python bindings
 
-インストール
-===========
+Installation
+============
 
 .. code-block:: bash
 
    pip install rustshogi
 
-クイックスタート
-==============
+Quickstart
+==========
 
 .. code-block:: python
 
    from rustshogi import Board, ColorType, Move, Address
 
-   # 初期局面を作成
+   # Create an initial position
    board = Board("startpos")
 
-   # 合法手を検索
+   # Search for legal moves
    legal_moves = board.search_moves(ColorType.Black)
 
-   # 手を実行
+   # Execute a move
    if legal_moves:
        board.execute_move(legal_moves[0])
 
-詳細な使用方法については、:doc:`quickstart` を参照してください。
+For detailed usage, please refer to :doc:`quickstart`.
 
-API リファレンス
+API Reference
 ===============
 
-完全なAPIリファレンスは :doc:`reference/rustshogi` で確認できます。
+The complete API reference can be found at :doc:`reference/rustshogi`.
 
 .. toctree::
    :maxdepth: 1
-   :caption: API リファレンス:
+   :caption: API Reference:
 
    reference/rustshogi
 
-インデックスとテーブル
-====================
+Indices and tables
+==================
 
 * :ref:`genindex`
 * :ref:`modindex`
