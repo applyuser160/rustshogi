@@ -15,6 +15,8 @@ use burn::tensor::backend::AutodiffBackend;
 use chrono;
 use pyo3::prelude::*;
 use rand;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use rayon::prelude::*;
 use std::io::{self, Write};
 use std::path::Path;
@@ -187,7 +189,32 @@ impl NeuralEvaluator {
         Ok(updated_count)
     }
 
-    /// Loss function (for AutodiffBackend)
+    /// Loss function (for AutodiffBackend) - Cross Entropy Loss
+    /// Suitable for predicting probability distributions (white_win_rate, black_win_rate, draw_rate)
+    /// Treats each element as an independent probability and calculates binary cross entropy
+    fn cross_entropy_loss_autodiff<B: AutodiffBackend>(
+        predictions: &Tensor<B, 2>,
+        targets: &Tensor<B, 2>,
+    ) -> Tensor<B, 1> {
+        let epsilon = 1e-8;
+        // Clip predictions to [epsilon, 1.0 - epsilon] range for numerical stability
+        let clipped_pred = predictions.clone().clamp(epsilon, 1.0 - epsilon);
+        // Calculate log of predictions
+        let log_pred = clipped_pred.clone().log();
+        // Calculate log of (1 - pred) using tensor subtraction
+        let ones_pred = Tensor::ones_like(&clipped_pred);
+        let one_minus_pred = ones_pred - clipped_pred;
+        let log_one_minus_pred = one_minus_pred.log();
+        // Binary cross entropy: -(target * log(pred) + (1 - target) * log(1 - pred))
+        let ones_target = Tensor::ones_like(targets);
+        let neg_log_likelihood =
+            targets.clone() * log_pred + (ones_target - targets.clone()) * log_one_minus_pred;
+        // Calculate average over the entire batch
+        neg_log_likelihood.sum().neg() / (predictions.dims()[0] as f32)
+    }
+
+    /// MSE Loss function (for backward compatibility)
+    #[allow(dead_code)]
     fn mse_loss_autodiff<B: AutodiffBackend>(
         predictions: &Tensor<B, 2>,
         targets: &Tensor<B, 2>,
@@ -241,7 +268,7 @@ impl NeuralEvaluator {
                 .reshape([batch_size, output_dim]);
 
         let predictions = model.forward(batch_input_tensor);
-        let loss = Self::mse_loss_autodiff(&predictions, &batch_target_tensor);
+        let loss = Self::cross_entropy_loss_autodiff(&predictions, &batch_target_tensor);
         let loss_value: f32 = loss.clone().into_scalar();
 
         let grads = loss.backward();
@@ -356,13 +383,17 @@ impl NeuralEvaluator {
             const PROGRESS_UPDATE_INTERVAL: usize = 1000;
 
             loop {
-                let batch_records =
+                let mut batch_records =
                     db.fetch_batch_from_db(min_games, DB_FETCH_BATCH_SIZE, db_offset)?;
                 if batch_records.is_empty() {
                     break;
                 }
 
-                // 並列化による前処理
+                // Shuffle data to randomize training order
+                let mut rng = thread_rng();
+                batch_records.shuffle(&mut rng);
+
+                // Parallel preprocessing
                 let results: Vec<_> = batch_records
                     .par_iter()
                     .map(|(board_sfen, white_wins, black_wins, total_games)| {
