@@ -308,7 +308,7 @@ impl NeuralEvaluator {
             .to_string();
 
         print!(
-            "\r  Progress: {}/{} ({:.1}%) - Elapsed: {:.1}s - Speed: {:.0} samples/sec - Remaining: {:.1}min (Estimated end: {})    ",
+            "\r Progress: {}/{} ({:.1}%) - Elapsed: {:.1}s - Speed: {:.0} samples/sec - Remaining: {:.1}min (ETA: {})",
             processed_samples,
             target_count,
             progress_percent,
