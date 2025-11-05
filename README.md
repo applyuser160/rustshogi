@@ -9,6 +9,7 @@
   </a>
   <img src="https://img.shields.io/badge/Rust-2021-orange.svg" alt="Rust 2021">
   <img src="https://img.shields.io/badge/Python-3.8+-blue.svg" alt="Python 3.8+">
+  <a href="https://pepy.tech/projects/rustshogi"><img src="https://static.pepy.tech/personalized-badge/rustshogi?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=BLUE&left_text=downloads" alt="PyPI Downloads"></a>
 </p>
 
 <div align="center">
