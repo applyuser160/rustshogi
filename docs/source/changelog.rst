@@ -1,55 +1,34 @@
-変更履歴
-========
+Changelog
+=========
 
-このドキュメントでは、rustshogiの各バージョンでの変更点を記録しています。
+This document records the changes for each version of rustshogi.
 
-バージョン 0.1.0 (2025-01-XX)
+Version 0.1.0 (2025-01-XX)
 =============================
 
-初回リリース
+Initial release
 
-新機能
-~~~~~~
+New Features
+~~~~~~~~~~~~
 
-* 基本的な将棋盤の表現と操作
-* 合法手の生成
-* 手の実行と取り消し
-* 局面評価機能
-* MCTS（モンテカルロ木探索）アルゴリズム
-* Pythonバインディング
-* 基本的なゲーム管理機能
-
-API
-~~~
-
-* :py:class:`Board` - 将棋盤の表現
-* :py:class:`Move` - 手の表現
-* :py:class:`Piece` - 駒の表現
-* :py:class:`Color` - 先手・後手の表現
-* :py:class:`Hand` - 持ち駒の管理
-* :py:class:`Game` - ゲーム管理
-
-新機能
-~~~~~~
-
-* 基本的な将棋盤の表現と操作（Boardクラス）
-* 合法手の生成と検索（search_movesメソッド）
-* 手の実行（execute_moveメソッド）
-* 駒の配置（deployメソッド）
-* 持ち駒の管理（Handクラス）
-* ゲーム状態の管理（Gameクラス）
-* 座標の表現（Addressクラス）
-* 駒の種類と色の表現（PieceType、ColorType列挙型）
-* Pythonバインディング
+*   Basic shogi board representation and operations (`Board` class)
+*   Generation and search of legal moves (`search_moves` method)
+*   Execution of moves (`execute_move` method)
+*   Piece placement (`deploy` method)
+*   Hand management (`Hand` class)
+*   Game state management (`Game` class)
+*   Coordinate representation (`Address` class)
+*   Representation of piece types and colors (`PieceType`, `ColorType` enums)
+*   Python bindings
 
 API
 ~~~
 
-* :py:class:`Address` - 座標の表現
-* :py:class:`ColorType` - 先手・後手の表現
-* :py:class:`PieceType` - 駒の種類の表現
-* :py:class:`Piece` - 駒の表現
-* :py:class:`Move` - 手の表現
-* :py:class:`Hand` - 持ち駒の管理
-* :py:class:`Board` - 将棋盤の表現
-* :py:class:`Game` - ゲーム管理
+*   :py:class:`Address` - Represents coordinates
+*   :py:class:`ColorType` - Represents the players (Black/White)
+*   :py:class:`PieceType` - Represents the type of a piece
+*   :py:class:`Piece` - Represents a piece
+*   :py:class:`Move` - Represents a move
+*   :py:class:`Hand` - Manages pieces in hand
+*   :py:class:`Board` - Represents the shogi board
+*   :py:class:`Game` - Manages the game

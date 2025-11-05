@@ -1,177 +1,183 @@
-API リファレンス
-================
+API Reference
+=============
 
-rustshogiの完全なAPIリファレンスです。
+This is the complete API reference for rustshogi.
 
 .. toctree::
    :maxdepth: 2
 
    ../reference/rustshogi
 
-モジュール概要
-=============
+Module Overview
+===============
 
-rustshogiは以下の主要なクラスと列挙型で構成されています：
+rustshogi consists of the following main classes and enumerations:
 
-* :doc:`../reference/rustshogi` - メインモジュール（将棋盤、手、駒などの基本機能）
+* :doc:`../reference/rustshogi` - Main module (basic functions for shogi board, moves, pieces, etc.)
 
-基本的な型
-==========
+Basic Types
+===========
 
 .. py:class:: Address
    :module: rustshogi
 
-   将棋盤上の座標を表現するクラス。列（column）と行（row）の情報を含みます。
+   A class that represents coordinates on the shogi board. It includes column and row information.
 
 .. py:class:: ColorType
    :module: rustshogi
 
-   先手・後手を表現する列挙型。Black（先手）とWhite（後手）の値を持ちます。
+   An enumeration that represents the players. It has values for Black (Sente) and White (Gote).
 
 .. py:class:: PieceType
    :module: rustshogi
 
-   将棋の駒の種類を表現する列挙型。King、Gold、Rook、Bishop、Silver、Knight、Lance、Pawn、および成り駒の種類を含みます。
+   An enumeration that represents the types of shogi pieces. It includes King, Gold, Rook, Bishop, Silver, Knight, Lance, Pawn, and their promoted versions.
 
 .. py:class:: Piece
    :module: rustshogi
 
-   将棋の駒を表現するクラス。駒の種類（PieceType）と色（ColorType）の情報を含みます。
+   A class that represents a shogi piece. It includes information about the piece type (PieceType) and its color (ColorType).
 
 .. py:class:: Move
    :module: rustshogi
 
-   将棋の手を表現するクラス。移動元、移動先、駒の種類、成りなどの情報を含みます。
+   A class that represents a shogi move. It includes information such as the source, destination, piece type, and promotion status.
 
 .. py:class:: Hand
-   :module: rustshogi.. py:class:: Board
    :module: rustshogi
 
-   将棋盤を表現するクラス。局面の状態、合法手の生成、手の実行などの機能を提供します。
+   A class that represents the pieces in a player's hand.
+
+.. py:class:: Board
+   :module: rustshogi
+
+   A class that represents the shogi board. It provides functions for managing the position, generating legal moves, and executing moves.
 
 .. py:class:: Game
    :module: rustshogi
 
-   ゲーム全体を管理するクラス。対局の進行、勝敗判定、ランダム対局などを担当します。
+   A class that manages the overall game. It handles game progression, win/loss determination, and random games.
 
-評価関数
-========
+Evaluation Functions
+====================
 
-rustshogiは、局面を評価するための複数の評価関数を提供します。
+rustshogi provides multiple evaluation functions to evaluate positions.
 
 .. py:class:: SimpleEvaluator
    :module: rustshogi
 
-   簡易評価関数。駒の価値のみを使用して局面を評価します。
+   A simple evaluator. It evaluates the position using only the value of the pieces.
 
    .. py:method:: evaluate(board: Board, color: ColorType) -> float
 
-      盤面を評価します。
+      Evaluates the board.
 
-      :param board: 評価する盤面
-      :param color: 評価するプレイヤーの色（先手または後手）
-      :returns: 評価値（colorの視点での評価、大きい方が有利）
+      :param board: The board to evaluate
+      :param color: The color of the player to evaluate for (Black or White)
+      :returns: The evaluation score (from the perspective of `color`, higher is better)
 
 .. py:class:: NeuralEvaluator
    :module: rustshogi
 
-   ニューラルネットワーク評価関数。機械学習モデルを使用して局面の勝率を予測し、評価値を計算します。
+   A neural network evaluator. It uses a machine learning model to predict the win rate of a position and calculate an evaluation score.
 
    .. py:method:: __init__(db_type_str: Optional[str] = None, connection_string: Optional[str] = None, model_path: Optional[str] = None)
 
-      評価関数を初期化します。
+      Initializes the evaluator.
 
-      :param db_type_str: データベースタイプ（"sqlite" または "postgres"）
-      :param connection_string: データベース接続文字列
-      :param model_path: モデルファイルのパス
+      :param db_type_str: Database type ("sqlite" or "postgres")
+      :param connection_string: Database connection string
+      :param model_path: Path to the model file
 
    .. py:method:: init_database() -> None
 
-      データベーステーブルを初期化します。
+      Initializes the database tables.
 
    .. py:method:: evaluate(board: Board, color: ColorType) -> float
 
-      盤面を評価します。
+      Evaluates the board.
 
-      :param board: 評価する盤面
-      :param color: 評価するプレイヤーの色
-      :returns: 評価値
+      :param board: The board to evaluate
+      :param color: The color of the player to evaluate for
+      :returns: The evaluation score
 
    .. py:method:: evaluate_position(board: Board, model_path: Optional[str] = None) -> Tuple[float, float, float]
 
-      特定の局面の勝率を予測します。
+      Predicts the win rate for a specific position.
 
-      :param board: 評価する盤面
-      :param model_path: モデルファイルのパス（オプション）
-      :returns: (白勝率, 黒勝率, 引き分け率) のタプル
+      :param board: The board to evaluate
+      :param model_path: Path to the model file (optional)
+      :returns: A tuple of (white win rate, black win rate, draw rate)
 
    .. py:method:: generate_and_save_random_boards(count: int) -> int
 
-      ランダム盤面を生成してデータベースに保存します。
+      Generates random boards and saves them to the database.
 
-      :param count: 生成する盤面の数
-      :returns: 保存された盤面の数
+      :param count: The number of boards to generate
+      :returns: The number of boards saved
 
-探索
-====
+Search
+======
 
-rustshogiは、最善手を探索するための探索エンジンと探索アルゴリズムを提供します。
+rustshogi provides a search engine and search algorithms to find the best move.
 
 .. py:class:: SearchEngine
    :module: rustshogi
 
-   探索エンジン。探索アルゴリズムと評価関数を組み合わせて最善手を探索します。
+   The search engine. It combines a search algorithm and an evaluation function to find the best move.
 
    .. py:method:: __init__(algorithm: str = "minmax", max_nodes: int = 1000000, evaluator: Optional[Evaluator] = None)
 
-      探索エンジンを初期化します。
+      Initializes the search engine.
 
-      :param algorithm: 探索アルゴリズム（"minmax" または "alphabeta"）
-      :param max_nodes: 最大探索ノード数
-      :param evaluator: 評価関数（オプション、デフォルトはSimpleEvaluator）
+      :param algorithm: Search algorithm ("minmax" or "alphabeta")
+      :param max_nodes: Maximum number of nodes to search
+      :param evaluator: Evaluator (optional, defaults to SimpleEvaluator)
 
    .. py:method:: search(board: Board, color: ColorType, depth: int) -> EvaluationResult
 
-      探索を実行して最善手を見つけます。
+      Executes a search to find the best move.
 
-      :param board: 現在の盤面
-      :param color: 手番の色
-      :param depth: 探索深度
-      :returns: 評価結果（評価値、最善手、探索ノード数を含む）
+      :param board: The current board
+      :param color: The color of the player to move
+      :param depth: The search depth
+      :returns: The evaluation result (includes score, best move, and number of nodes searched)
 
 .. py:class:: EvaluationResult
    :module: rustshogi
 
-   探索結果を表すクラス。
+   A class representing the search result.
 
    .. py:attribute:: score
 
-      評価値（float型）
+      The evaluation score (float)
 
    .. py:attribute:: best_move
 
-      最善手（Optional[Move]型）
+      The best move (Optional[Move])
 
    .. py:attribute:: nodes_searched
 
-      探索されたノード数（int型）
+      The number of nodes searched (int)
 
 .. py:class:: MinMaxSearchStrategy
    :module: rustshogi
 
-   ミニマックス探索アルゴリズム。すべての可能な手を探索し、最適な手を選択します。
+   The Minimax search algorithm. It explores all possible moves to select the optimal one.
 
    .. py:method:: __init__(max_nodes: int = 100)
 
-      ミニマックス探索.. py:class:: AlphaBetaSearchStrategy
+      Initializes the Minimax search strategy.
+
+      :param max_nodes: Maximum number of nodes to search
+
+.. py:class:: AlphaBetaSearchStrategy
    :module: rustshogi
 
-   アルファベータ探索アルゴリズム。ミニマックス探索を最適化した探索アルゴリズムで、不要なノードの探索をスキップします。
+   The Alpha-Beta search algorithm. It is an optimized version of Minimax that prunes branches of the search tree that are not worth exploring.
 
    .. py:method:: __init__(max_nodes: int = 100)
 
-      アルファベータ探索戦略を初期化します。
+      Initializes the Alpha-Beta search strategy.
 
-      :param max_nodes: 最大探索ノード数i
-
-   ゲーム全体を管理するクラス。対局の進行、勝敗判定、ランダム対局などを担当します。
+      :param max_nodes: Maximum number of nodes to search

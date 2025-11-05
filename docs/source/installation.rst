@@ -1,51 +1,51 @@
-インストール
+Installation
 ============
 
-rustshogiはPythonパッケージとして配布されています。
+rustshogi is distributed as a Python package.
 
-要件
-----
+Requirements
+------------
 
-* Python 3.8以上
-* Windows、macOS、Linux（x86_64）
+* Python 3.8 or higher
+* Windows, macOS, Linux (x86_64)
 
-pipでのインストール
-==================
+Installation with pip
+=====================
 
 .. code-block:: bash
 
    pip install rustshogi
 
-開発版のインストール
-==================
+Installing the development version
+================================
 
-最新の開発版をインストールする場合：
-
-.. code-block:: bash
-
-   pip install git+https://github.com/yourusername/rustshogi.git
-
-ソースからのビルド
-================
-
-Rustツールチェーンが必要です：
+To install the latest development version:
 
 .. code-block:: bash
 
-   # Rustのインストール
+   pip install git+https://github.com/applyuser160/rustshogi.git
+
+Building from source
+====================
+
+A Rust toolchain is required:
+
+.. code-block:: bash
+
+   # Install Rust
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-   # プロジェクトのクローン
-   git clone https://github.com/yourusername/rustshogi.git
+   # Clone the project
+   git clone https://github.com/applyuser160/rustshogi.git
    cd rustshogi
 
-   # ビルドとインストール
+   # Build and install
    pip install -e .
 
-インストールの確認
-================
+Verifying the installation
+==========================
 
-インストールが成功したか確認：
+To verify that the installation was successful:
 
 .. code-block:: python
 
