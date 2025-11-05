@@ -4,7 +4,7 @@ use super::super::evaluator::abst::Evaluator;
 use super::search_strategy::{self, EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
 
-/// AlphaBeta探索アルゴリズム
+/// AlphaBeta search algorithm
 #[pyclass]
 pub struct AlphaBetaSearchStrategy {
     #[pyo3(get, set)]

@@ -3,16 +3,16 @@ use ndarray::{Array1, Array2, Axis};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-/// PCA変換行列を保存するための構造体（ndarray使用）
+/// Structure to store the PCA transformation matrix (using ndarray)
 #[derive(Clone, Debug, PartialEq)]
 pub struct PCATransform {
-    pub components: Array2<f32>, // 主成分行列
-    pub mean: Array1<f32>,       // 平均ベクトル
-    pub n_components: usize,     // 主成分数
+    pub components: Array2<f32>, // Principal component matrix
+    pub mean: Array1<f32>,       // Mean vector
+    pub n_components: usize,     // Number of principal components
 }
 
 impl PCATransform {
-    /// 新しいPCA変換を作成
+    /// Create a new PCA transformation
     pub fn new(components: Array2<f32>, mean: Array1<f32>, n_components: usize) -> Self {
         Self {
             components,
@@ -21,7 +21,7 @@ impl PCATransform {
         }
     }
 
-    /// 特徴量を変換
+    /// Transform features
     pub fn transform(&self, features: &[f32]) -> Vec<f32> {
         if features.len() != self.mean.len() {
             panic!(
@@ -31,30 +31,30 @@ impl PCATransform {
             );
         }
 
-        // 特徴量をndarrayに変換
+        // Convert features to ndarray
         let data = Array1::from_vec(features.to_vec());
 
-        // 平均を引く
+        // Subtract the mean
         let centered = &data - &self.mean;
 
-        // 主成分を適用
+        // Apply principal components
         let transformed = self.components.dot(&centered);
 
         transformed.to_vec()
     }
 }
 
-// グローバルなPCA変換を保存
+// Store the global PCA transformation
 static PCA_TRANSFORM: Lazy<Mutex<Option<PCATransform>>> = Lazy::new(|| Mutex::new(None));
 
-/// グローバルなPCA変換を設定
+/// Set the global PCA transformation
 pub fn set_global_pca_transform(pca_transform: PCATransform) {
     if let Ok(mut transform) = PCA_TRANSFORM.lock() {
         *transform = Some(pca_transform);
     }
 }
 
-/// グローバルなPCA変換を取得
+/// Get the global PCA transformation
 pub fn get_global_pca_transform() -> Option<PCATransform> {
     if let Ok(transform) = PCA_TRANSFORM.lock() {
         transform.clone()
@@ -63,7 +63,7 @@ pub fn get_global_pca_transform() -> Option<PCATransform> {
     }
 }
 
-/// 本格的なPCA学習（nalgebra使用）
+/// Full PCA learning (using nalgebra)
 pub fn learn_pca(samples: &[Vec<f32>], n_components: usize) -> Result<PCATransform, String> {
     if samples.is_empty() {
         return Err("Cannot learn PCA from empty samples".to_string());
@@ -79,7 +79,7 @@ pub fn learn_pca(samples: &[Vec<f32>], n_components: usize) -> Result<PCATransfo
         ));
     }
 
-    // データをndarrayに変換
+    // Convert data to ndarray
     let mut data = Array2::zeros((n_samples, n_features));
     for (i, sample) in samples.iter().enumerate() {
         for (j, &value) in sample.iter().enumerate() {
@@ -87,16 +87,16 @@ pub fn learn_pca(samples: &[Vec<f32>], n_components: usize) -> Result<PCATransfo
         }
     }
 
-    // 平均を計算
+    // Calculate the mean
     let mean = data.mean_axis(Axis(0)).unwrap();
 
-    // データを中心化（平均を引く）
+    // Center the data (subtract the mean)
     let mut centered = data.clone();
     for mut row in centered.rows_mut() {
         row -= &mean;
     }
 
-    // nalgeb raのDMatrixに変換
+    // Convert to nalgebra's DMatrix
     let mut nalgebra_data = DMatrix::zeros(n_samples, n_features);
     for i in 0..n_samples {
         for j in 0..n_features {
@@ -104,19 +104,19 @@ pub fn learn_pca(samples: &[Vec<f32>], n_components: usize) -> Result<PCATransfo
         }
     }
 
-    // 共分散行列を計算: C = (X^T * X) / (n-1)
+    // Calculate the covariance matrix: C = (X^T * X) / (n-1)
     let covariance = nalgebra_data.transpose() * &nalgebra_data / (n_samples - 1) as f32;
 
-    // 固有値分解を実行（nalgeb raの対称固有値分解を使用）
+    // Perform eigenvalue decomposition (using nalgebra's symmetric eigenvalue decomposition)
     let eigen = match covariance.symmetric_eigen() {
         eigen => eigen,
     };
 
-    // 固有値と固有ベクトルを取得
+    // Get eigenvalues and eigenvectors
     let eigenvalues = eigen.eigenvalues;
     let eigenvectors = eigen.eigenvectors;
 
-    // 固有値の大きい順にソート
+    // Sort by eigenvalue in descending order
     let mut eigenval_vec: Vec<(usize, f32)> = Vec::new();
     for i in 0..eigenvalues.len() {
         eigenval_vec.push((i, eigenvalues[i]));
@@ -124,7 +124,7 @@ pub fn learn_pca(samples: &[Vec<f32>], n_components: usize) -> Result<PCATransfo
 
     eigenval_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
-    // 上位n_components個の主成分を選択
+    // Select the top n_components principal components
     let mut components = Array2::zeros((n_components, n_features));
     for i in 0..n_components {
         if i < eigenval_vec.len() {
@@ -138,7 +138,7 @@ pub fn learn_pca(samples: &[Vec<f32>], n_components: usize) -> Result<PCATransfo
     Ok(PCATransform::new(components, mean, n_components))
 }
 
-/// 簡易的なPCA学習（分散ベースの選択）
+/// Simple PCA learning (variance-based selection)
 pub fn learn_simple_pca(samples: &[Vec<f32>], n_components: usize) -> PCATransform {
     if samples.is_empty() {
         panic!("Cannot learn PCA from empty samples");
@@ -146,7 +146,7 @@ pub fn learn_simple_pca(samples: &[Vec<f32>], n_components: usize) -> PCATransfo
 
     let n_features = samples[0].len();
 
-    // データをndarrayに変換
+    // Convert data to ndarray
     let mut data = Array2::zeros((samples.len(), n_features));
     for (i, sample) in samples.iter().enumerate() {
         for (j, &value) in sample.iter().enumerate() {
@@ -154,10 +154,10 @@ pub fn learn_simple_pca(samples: &[Vec<f32>], n_components: usize) -> PCATransfo
         }
     }
 
-    // 平均を計算
+    // Calculate the mean
     let mean = data.mean_axis(Axis(0)).unwrap();
 
-    // 分散を計算
+    // Calculate the variance
     let mut variances = Array1::zeros(n_features);
     for row in data.rows() {
         let centered_row = &row - &mean;
@@ -167,11 +167,11 @@ pub fn learn_simple_pca(samples: &[Vec<f32>], n_components: usize) -> PCATransfo
     }
     variances /= samples.len() as f32;
 
-    // 分散の大きい順にインデックスをソート
+    // Sort indices by variance in descending order
     let mut indices: Vec<usize> = (0..n_features).collect();
     indices.sort_by(|&a, &b| variances[b].partial_cmp(&variances[a]).unwrap());
 
-    // 主成分を作成（簡易実装：単位ベクトル）
+    // Create principal components (simple implementation: unit vectors)
     let mut components = Array2::zeros((n_components, n_features));
     for i in 0..n_components {
         if i < indices.len() {
@@ -182,20 +182,20 @@ pub fn learn_simple_pca(samples: &[Vec<f32>], n_components: usize) -> PCATransfo
     PCATransform::new(components, mean, n_components)
 }
 
-/// PCAによる次元圧縮を適用
+/// Apply dimensionality reduction by PCA
 pub fn apply_pca_compression(features: &[f32], target_dims: usize) -> Vec<f32> {
     if target_dims >= features.len() {
         return features.to_vec();
     }
 
-    // グローバルなPCA変換がある場合はそれを使用
+    // If a global PCA transformation is available, use it
     if let Some(ref transform) = get_global_pca_transform() {
         if transform.n_components == target_dims {
             return transform.transform(features);
         }
     }
 
-    // PCA変換がない場合は簡易的なサンプリングを使用
+    // If no PCA transformation is available, use simple sampling
     let mut compressed = Vec::with_capacity(target_dims);
     let step = features.len() as f32 / target_dims as f32;
     for i in 0..target_dims {

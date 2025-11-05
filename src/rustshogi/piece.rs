@@ -70,12 +70,12 @@ impl PieceType {
             PieceType::Knight => String::from('n'),
             PieceType::Lance => String::from('l'),
             PieceType::Pawn => String::from('p'),
-            PieceType::Dragon => String::from("+r"), // 成り飛車
-            PieceType::Horse => String::from("+b"),  // 成り角
-            PieceType::ProSilver => String::from("+s"), // 成り銀
-            PieceType::ProKnight => String::from("+n"), // 成り桂
-            PieceType::ProLance => String::from("+l"), // 成り香
-            PieceType::ProPawn => String::from("+p"), // 成り歩
+            PieceType::Dragon => String::from("+r"), // Promoted Rook
+            PieceType::Horse => String::from("+b"),  // Promoted Bishop
+            PieceType::ProSilver => String::from("+s"), // Promoted Silver
+            PieceType::ProKnight => String::from("+n"), // Promoted Knight
+            PieceType::ProLance => String::from("+l"), // Promoted Lance
+            PieceType::ProPawn => String::from("+p"), // Promoted Pawn
         }
     }
 

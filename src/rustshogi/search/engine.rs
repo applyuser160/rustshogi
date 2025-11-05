@@ -8,8 +8,8 @@ use super::minmax::MinMaxSearchStrategy;
 use super::search_strategy::{EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
 
-/// Evaluatorトレイトを持つラッパーenum
-/// Pythonから様々な評価器を受け取るための統一的インターフェース
+/// Wrapper enum with the Evaluator trait
+/// A unified interface for receiving various evaluators from Python
 #[derive(FromPyObject)]
 pub enum EvaluatorWrapper {
     Simple(SimpleEvaluator),
@@ -25,8 +25,8 @@ impl EvaluatorWrapper {
     }
 }
 
-/// 探索エンジン
-/// 探索戦略と評価関数を組み合わせて使用
+/// Search engine
+/// Uses a combination of a search strategy and an evaluation function
 #[pyclass]
 pub struct SearchEngine {
     search_strategy: Box<dyn SearchStrategy + Send + Sync>,
@@ -44,7 +44,7 @@ impl SearchEngine {
         }
     }
 
-    /// 探索を実行する
+    /// Execute a search
     pub fn search(&self, board: &Board, color: ColorType, depth: u8) -> EvaluationResult {
         self.search_strategy.search(
             board,
@@ -72,7 +72,7 @@ impl SearchEngine {
                 _ => Box::new(MinMaxSearchStrategy::new(max_nodes)),
             };
 
-        // evaluatorがNoneの場合はデフォルトでSimpleEvaluatorを使用
+        // If evaluator is None, use SimpleEvaluator by default
         let evaluator: Option<Box<dyn Evaluator + Send + Sync>> = evaluator
             .map(|e| e.into_evaluator())
             .or_else(|| Some(Box::new(SimpleEvaluator::new())));

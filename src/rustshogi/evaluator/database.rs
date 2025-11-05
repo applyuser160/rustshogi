@@ -4,14 +4,14 @@ use rusqlite;
 use serde::{Deserialize, Serialize};
 use tokio_postgres;
 
-/// 学習データベースのレコード構造体
+/// Record structure for the training database
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[pyclass]
 pub struct TrainingRecord {
     #[pyo3(get)]
     pub id: i64,
     #[pyo3(get)]
-    pub board: String, // SFEN形式の文字列
+    pub board: String, // SFEN format string
     #[pyo3(get)]
     pub white_wins: i32,
     #[pyo3(get)]
@@ -24,14 +24,14 @@ pub struct TrainingRecord {
     pub updated_at: String,
 }
 
-/// データベースタイプの列挙型
+/// Enum for database types
 #[derive(Debug, Clone)]
 pub enum DatabaseType {
-    Sqlite(String),   // SQLiteファイルパス
-    Postgres(String), // PostgreSQL接続文字列
+    Sqlite(String),   // SQLite file path
+    Postgres(String), // PostgreSQL connection string
 }
 
-/// データベース操作を管理する構造体
+/// Structure to manage database operations
 pub struct TrainingDatabase {
     pub db_type: DatabaseType,
 }
@@ -41,7 +41,7 @@ impl TrainingDatabase {
         Self { db_type }
     }
 
-    /// データベーステーブルを初期化
+    /// Initialize the database table
     pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
@@ -65,7 +65,7 @@ impl TrainingDatabase {
                     [],
                 )?;
 
-                println!("SQLiteデータベーステーブルを初期化しました: {}", db_path);
+                println!("Initialized SQLite database table: {}", db_path);
                 Ok(())
             }
             DatabaseType::Postgres(connection_string) => {
@@ -73,10 +73,10 @@ impl TrainingDatabase {
                 rt.block_on(async {
                     let (client, connection) = tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
 
-                    // 接続をバックグラウンドで実行
+                    // Run the connection in the background
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 
@@ -98,14 +98,14 @@ impl TrainingDatabase {
                         &[],
                     ).await?;
 
-                    println!("PostgreSQLデータベーステーブルを初期化しました");
+                    println!("Initialized PostgreSQL database table");
                     Ok::<(), tokio_postgres::Error>(())
                 }).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
             }
         }
     }
 
-    /// データベースからバッチ単位でデータを取得するヘルパー関数
+    /// Helper function to fetch data from the database in batches
     pub fn fetch_batch_from_db(
         &self,
         min_games: i32,
@@ -151,7 +151,7 @@ impl TrainingDatabase {
 
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 
@@ -184,7 +184,7 @@ impl TrainingDatabase {
         }
     }
 
-    /// 特定のレコードの詳細情報を取得
+    /// Get detailed information for a specific record
     pub fn get_record_details(
         &self,
         record_id: i64,
@@ -222,7 +222,7 @@ impl TrainingDatabase {
 
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 
@@ -251,7 +251,7 @@ impl TrainingDatabase {
         }
     }
 
-    /// データベースの統計情報を取得
+    /// Get database statistics
     pub fn get_database_stats(
         &self,
     ) -> Result<(i64, i64, i64), Box<dyn std::error::Error + Send + Sync>> {
@@ -279,7 +279,7 @@ impl TrainingDatabase {
 
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 
@@ -298,7 +298,7 @@ impl TrainingDatabase {
         }
     }
 
-    /// 新しい盤面をデータベースに保存
+    /// Save a new board to the database
     pub fn save_new_board(
         &self,
         board_sfen: &str,
@@ -319,7 +319,7 @@ impl TrainingDatabase {
 
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 
@@ -337,7 +337,7 @@ impl TrainingDatabase {
         Ok(())
     }
 
-    /// 更新対象のレコードを読み取り
+    /// Read records to be updated
     pub fn read_records_for_update(
         &self,
         max_records: Option<usize>,
@@ -372,7 +372,7 @@ impl TrainingDatabase {
 
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 
@@ -398,7 +398,7 @@ impl TrainingDatabase {
         }
     }
 
-    /// 対局結果をデータベースに書き込み
+    /// Write game results to the database
     pub fn update_game_results(
         &self,
         results: Vec<(i64, i32, i32, i32)>,
@@ -429,7 +429,7 @@ impl TrainingDatabase {
                         tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 
@@ -456,7 +456,7 @@ impl TrainingDatabase {
         Ok(updated_count)
     }
 
-    /// 学習対象のレコード数を取得
+    /// Get the number of records for training
     pub fn count_records_for_training(
         &self,
         min_games: i32,
@@ -479,7 +479,7 @@ impl TrainingDatabase {
 
                     tokio::spawn(async move {
                         if let Err(e) = connection.await {
-                            eprintln!("PostgreSQL接続エラー: {}", e);
+                            eprintln!("PostgreSQL connection error: {}", e);
                         }
                     });
 

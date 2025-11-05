@@ -8,10 +8,10 @@ use rustshogi::nn_model::{ModelSaveData, NnModelConfig, TrainingConfig, Training
 fn test_nn_model_config() {
     let config = NnModelConfig::default();
 
-    // 設定が正しいことを確認
+    // Check that the settings are correct
     assert_eq!(config.input_dim, 2320);
     assert_eq!(config.output_dim, 3);
-    assert_eq!(config.hidden_dims, vec![1024, 512, 256]); // 3つの隠れ層
+    assert_eq!(config.hidden_dims, vec![1024, 512, 256]); // 3 hidden layers
     assert_eq!(config.dropout_rate, 0.3);
 }
 
@@ -19,9 +19,9 @@ fn test_nn_model_config() {
 fn test_training_config() {
     let config = TrainingConfig::default();
 
-    // 学習設定が正しいことを確認
+    // Check that the training settings are correct
     assert_eq!(config.learning_rate, 0.001);
-    assert_eq!(config.batch_size, 64); // デフォルト値が64に変更
+    assert_eq!(config.batch_size, 64); // Default value changed to 64
     assert_eq!(config.num_epochs, 100);
     assert_eq!(config.model_save_path, "model.bin");
     assert_eq!(config.use_lr_scheduling, true);
@@ -33,16 +33,16 @@ fn test_training_config() {
 fn test_training_data() {
     let mut training_data = TrainingData::new();
 
-    // 空のデータを確認
+    // Check empty data
     assert!(training_data.is_empty());
     assert_eq!(training_data.len(), 0);
 
-    // サンプルデータを追加
+    // Add sample data
     let input = vec![0.0; 2320];
     let target = vec![1.0, 2.0, 3.0];
     training_data.add_sample(input, target);
 
-    // データが追加されたことを確認
+    // Check that data has been added
     assert!(!training_data.is_empty());
     assert_eq!(training_data.len(), 1);
     assert_eq!(training_data.inputs[0].len(), 2320);
@@ -54,7 +54,7 @@ fn test_board_to_vector_output_size() {
     let board = Board::new();
     let vector = board.to_vector(None);
 
-    // board.to_vectorの出力が2320次元であることを確認
+    // Check that the output of board.to_vector is 2320 dimensions
     assert_eq!(vector.len(), 2320);
 }
 
@@ -64,10 +64,10 @@ fn test_board_startpos_to_vector() {
     board.startpos();
     let vector = board.to_vector(None);
 
-    // 開始局面のベクターが正しいサイズであることを確認
+    // Check that the vector for the starting position is the correct size
     assert_eq!(vector.len(), 2320);
 
-    // ベクターに非ゼロ値が含まれることを確認（開始局面なので駒が配置されている）
+    // Check that the vector contains non-zero values (since pieces are placed in the starting position)
     let has_non_zero = vector.iter().any(|&x| x != 0.0);
     assert!(has_non_zero);
 }
@@ -77,67 +77,67 @@ fn test_model_save_load() {
     use std::fs;
     use std::path::Path;
 
-    // デバイスを明示的に指定しないテスト
+    // Test without explicitly specifying the device
     let test_path = "test_model.json";
 
-    // ダミーのモデルデータを作成して保存
+    // Create and save dummy model data
     let save_data = ModelSaveData {
         config: NnModelConfig::default(),
         hidden_layers_weights: vec![
-            vec![vec![1.0; 2320]; 1024], // 入力層 -> 隠れ層1
-            vec![vec![1.0; 1024]; 512],  // 隠れ層1 -> 隠れ層2
-            vec![vec![1.0; 512]; 256],   // 隠れ層2 -> 隠れ層3
+            vec![vec![1.0; 2320]; 1024], // Input layer -> Hidden layer 1
+            vec![vec![1.0; 1024]; 512],  // Hidden layer 1 -> Hidden layer 2
+            vec![vec![1.0; 512]; 256],   // Hidden layer 2 -> Hidden layer 3
         ],
         hidden_layers_bias: vec![
-            vec![0.0; 1024], // 隠れ層1のバイアス
-            vec![0.0; 512],  // 隠れ層2のバイアス
-            vec![0.0; 256],  // 隠れ層3のバイアス
+            vec![0.0; 1024], // Bias for hidden layer 1
+            vec![0.0; 512],  // Bias for hidden layer 2
+            vec![0.0; 256],  // Bias for hidden layer 3
         ],
         output_layer_weights: vec![vec![1.0; 256]; 3],
         output_layer_bias: vec![0.0; 3],
     };
 
-    // JSON形式で保存
+    // Save in JSON format
     let json_data = serde_json::to_string_pretty(&save_data).unwrap();
     fs::write(test_path, json_data).unwrap();
 
-    // ファイルが作成されたことを確認
+    // Check that the file was created
     assert!(Path::new(test_path).exists());
 
-    // ファイルの内容を確認
+    // Check the file content
     let contents = fs::read_to_string(test_path).unwrap();
     assert!(contents.contains("hidden_layers_weights"));
     assert!(contents.contains("output_layer_weights"));
 
-    // ファイルを読み込み
+    // Read the file
     let loaded_json = fs::read_to_string(test_path).unwrap();
     let loaded_data: ModelSaveData = serde_json::from_str(&loaded_json).unwrap();
     assert_eq!(loaded_data.hidden_layers_weights.len(), 3);
 
-    // テストファイルを削除
+    // Delete the test file
     let _ = fs::remove_file(test_path);
 }
 
 #[test]
 fn test_model_weights_access() {
-    // 重みデータの構造をテスト
+    // Test the structure of the weight data
     let weights = ModelSaveData {
         config: NnModelConfig::default(),
         hidden_layers_weights: vec![
-            vec![vec![0.0; 2320]; 1024], // 入力層 -> 隠れ層1
-            vec![vec![0.0; 1024]; 512],  // 隠れ層1 -> 隠れ層2
-            vec![vec![0.0; 512]; 256],   // 隠れ層2 -> 隠れ層3
+            vec![vec![0.0; 2320]; 1024], // Input layer -> Hidden layer 1
+            vec![vec![0.0; 1024]; 512],  // Hidden layer 1 -> Hidden layer 2
+            vec![vec![0.0; 512]; 256],   // Hidden layer 2 -> Hidden layer 3
         ],
         hidden_layers_bias: vec![
-            vec![0.0; 1024], // 隠れ層1のバイアス
-            vec![0.0; 512],  // 隠れ層2のバイアス
-            vec![0.0; 256],  // 隠れ層3のバイアス
+            vec![0.0; 1024], // Bias for hidden layer 1
+            vec![0.0; 512],  // Bias for hidden layer 2
+            vec![0.0; 256],  // Bias for hidden layer 3
         ],
         output_layer_weights: vec![vec![0.0; 256]; 3],
         output_layer_bias: vec![0.0; 3],
     };
 
-    // 重みの構造を確認
+    // Check the structure of the weights
     assert_eq!(weights.hidden_layers_weights.len(), 3);
     assert_eq!(weights.hidden_layers_weights[0].len(), 1024);
     assert_eq!(weights.hidden_layers_weights[0][0].len(), 2320);
@@ -153,47 +153,47 @@ fn test_training_with_optimization() {
     use rustshogi::board::Board;
     use rustshogi::nn_model::{NnModelConfig, TrainingConfig, TrainingData};
 
-    // テスト用の学習データを作成
+    // Create test training data
     let mut training_data = TrainingData::new();
 
-    // 開始局面のデータを追加
+    // Add data for the starting position
     let mut board = Board::new();
     board.startpos();
     let vector = board.to_vector(None);
 
-    // ダミーのMCTS結果を作成
+    // Create dummy MCTS results
     let white_wins = 100.0;
     let black_wins = 80.0;
     let total_games = 200.0;
 
     training_data.add_sample(vector, vec![white_wins, black_wins, total_games]);
 
-    // 学習設定
+    // Training settings
     let training_config = TrainingConfig {
         learning_rate: 0.001,
         batch_size: 1,
-        num_epochs: 5, // 短いエポック数でテスト
+        num_epochs: 5, // Test with a small number of epochs
         model_save_path: "test_model.bin".to_string(),
         use_lr_scheduling: true,
         use_early_stopping: true,
         early_stopping_patience: 10,
     };
 
-    // モデルを作成（デバイスを明示的に指定しない）
+    // Create the model (without explicitly specifying the device)
     let config = NnModelConfig::default();
     let device = NdArrayDevice::Cpu;
     let model = NnModel::<Autodiff<NdArray>>::new(&config, &device);
 
-    // 学習を実行
+    // Run training
     let trained_model = model.train(&training_data, &training_config, &device);
     assert!(trained_model.is_ok());
 
-    // 学習データの構造をテスト
+    // Test the structure of the training data
     assert_eq!(training_data.len(), 1);
     assert_eq!(training_data.inputs[0].len(), 2320);
     assert_eq!(training_data.targets[0].len(), 3);
 
-    println!("学習テストが完了しました");
+    println!("Training test completed");
 }
 
 #[test]
@@ -201,10 +201,10 @@ fn test_training_full_with_autodiff() {
     use rustshogi::board::Board;
     use rustshogi::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
 
-    // テスト用の学習データを作成
+    // Create test training data
     let mut training_data = TrainingData::new();
 
-    // 複数の局面のデータを追加
+    // Add data for multiple positions
     for i in 0..3 {
         let mut board = Board::new();
         board.startpos();
@@ -217,32 +217,32 @@ fn test_training_full_with_autodiff() {
         training_data.add_sample(vector, vec![white_wins, black_wins, total_games]);
     }
 
-    // 学習設定
+    // Training settings
     let training_config = TrainingConfig {
         learning_rate: 0.001,
         batch_size: 2,
-        num_epochs: 3, // 短いエポック数でテスト
+        num_epochs: 3, // Test with a small number of epochs
         model_save_path: "test_model_full.bin".to_string(),
         use_lr_scheduling: true,
         use_early_stopping: true,
         early_stopping_patience: 10,
     };
 
-    // モデルを作成（デバイスを明示的に指定しない）
+    // Create the model (without explicitly specifying the device)
     let config = NnModelConfig::default();
     let device = NdArrayDevice::Cpu;
     let model = NnModel::<Autodiff<NdArray>>::new(&config, &device);
 
-    // AutodiffBackend用の完全な学習を実行
+    // Run full training for AutodiffBackend
     let trained_model = model.train(&training_data, &training_config, &device);
     assert!(trained_model.is_ok());
 
-    // 学習データの構造をテスト
+    // Test the structure of the training data
     assert_eq!(training_data.len(), 3);
     for i in 0..3 {
         assert_eq!(training_data.inputs[i].len(), 2320);
         assert_eq!(training_data.targets[i].len(), 3);
     }
 
-    println!("AutodiffBackend用の完全な学習テストが完了しました");
+    println!("Full training test for AutodiffBackend completed");
 }

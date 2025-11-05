@@ -19,7 +19,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::time::Instant;
 
-/// ニューラルネットワーク評価関数システム
+/// Neural network evaluation function system
 #[pyclass]
 #[derive(Clone)]
 pub struct NeuralEvaluator {
@@ -28,7 +28,7 @@ pub struct NeuralEvaluator {
 }
 
 impl NeuralEvaluator {
-    /// 新しい評価関数システムを作成
+    /// Create a new evaluation function system
     pub fn new(db_type: Option<DatabaseType>, model_path: Option<String>) -> Self {
         Self {
             db_type,
@@ -36,22 +36,22 @@ impl NeuralEvaluator {
         }
     }
 
-    /// データベース操作用のヘルパー
+    /// Helper for database operations
     fn get_db(&self) -> Result<TrainingDatabase, Box<dyn std::error::Error + Send + Sync>> {
         let db_type = self
             .db_type
             .as_ref()
             .cloned()
-            .ok_or("データベースタイプが設定されていません")?;
+            .ok_or("Database type is not set")?;
         Ok(TrainingDatabase::new(db_type))
     }
 
-    /// データベーステーブルを初期化
+    /// Initialize the database table
     pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.get_db()?.init_database()
     }
 
-    /// ランダム盤面を生成してRDBに保存
+    /// Generate and save random boards to the RDB
     pub fn generate_and_save_random_boards(
         &self,
         count: usize,
@@ -60,7 +60,7 @@ impl NeuralEvaluator {
         let mut saved_count = 0;
         let start_time = Instant::now();
 
-        println!("{}個のランダム盤面を生成中...", count);
+        println!("Generating {} random boards...", count);
 
         for i in 0..count {
             let mut game = Game::new();
@@ -74,7 +74,7 @@ impl NeuralEvaluator {
             if (i + 1) % 100 == 0 {
                 let elapsed = start_time.elapsed();
                 println!(
-                    "{}個の盤面を生成・保存しました (経過時間: {:.2}秒)",
+                    "Generated and saved {} boards (elapsed time: {:.2}s)",
                     i + 1,
                     elapsed.as_secs_f64()
                 );
@@ -83,14 +83,14 @@ impl NeuralEvaluator {
 
         let total_elapsed = start_time.elapsed();
         println!(
-            "{}個のランダム盤面を生成・保存しました (総時間: {:.2}秒)",
+            "Generated and saved {} random boards (total time: {:.2}s)",
             saved_count,
             total_elapsed.as_secs_f64()
         );
         Ok(saved_count)
     }
 
-    /// 保存されたレコードを読み取り、ランダム対局を実行して勝利数を更新
+    /// Read saved records, execute random games, and update the win counts
     pub fn update_records_with_random_games(
         &self,
         trials_per_record: usize,
@@ -102,7 +102,7 @@ impl NeuralEvaluator {
         let records = db.read_records_for_update(max_records)?;
 
         println!(
-            "{}個のレコードを順次処理します（各レコード内で{}個のスレッドで並列実行）",
+            "Processing {} records sequentially (with {} threads in parallel for each record)",
             records.len(),
             num_threads
         );
@@ -110,12 +110,12 @@ impl NeuralEvaluator {
         match self.get_database_stats() {
             Ok((total_records, total_games, avg_games)) => {
                 println!(
-                    "処理開始前のデータベース統計: 総レコード数={}, 総ゲーム数={}, 平均ゲーム数={}",
+                    "Database statistics before processing: Total records={}, Total games={}, Average games={}",
                     total_records, total_games, avg_games
                 );
             }
             Err(e) => {
-                eprintln!("データベース統計の取得に失敗: {}", e);
+                eprintln!("Failed to get database statistics: {}", e);
             }
         }
 
@@ -144,7 +144,7 @@ impl NeuralEvaluator {
                 let elapsed = start_time.elapsed();
                 let progress_percent = (processed_count as f64 / total_records as f64) * 100.0;
                 println!(
-                    "進捗: {}/{} ({:.1}%) - 経過時間: {:.2}秒",
+                    "Progress: {}/{} ({:.1}%) - Elapsed time: {:.2}s",
                     processed_count,
                     total_records,
                     progress_percent,
@@ -154,39 +154,39 @@ impl NeuralEvaluator {
         }
 
         println!(
-            "ランダム対局の試行が完了しました。処理されたレコード数: {}",
+            "Random game trials completed. Processed records: {}",
             all_results.len()
         );
 
-        println!("データベースへの書き込みを開始します...");
+        println!("Starting to write to the database...");
         let updated_count = db.update_game_results(all_results)?;
         println!(
-            "データベースへの書き込みが完了しました。更新されたレコード数: {}",
+            "Finished writing to the database. Updated records: {}",
             updated_count
         );
 
         match self.get_database_stats() {
             Ok((total_records, total_games, avg_games)) => {
                 println!(
-                    "データベース統計: 総レコード数={}, 総ゲーム数={}, 平均ゲーム数={}",
+                    "Database statistics: Total records={}, Total games={}, Average games={}",
                     total_records, total_games, avg_games
                 );
             }
             Err(e) => {
-                eprintln!("データベース統計の取得に失敗: {}", e);
+                eprintln!("Failed to get database statistics: {}", e);
             }
         }
 
         let total_elapsed = start_time.elapsed();
         println!(
-            "{}個のレコードを更新しました (総時間: {:.2}秒)",
+            "Updated {} records (total time: {:.2}s)",
             updated_count,
             total_elapsed.as_secs_f64()
         );
         Ok(updated_count)
     }
 
-    /// 損失関数（AutodiffBackend用）
+    /// Loss function (for AutodiffBackend)
     fn mse_loss_autodiff<B: AutodiffBackend>(
         predictions: &Tensor<B, 2>,
         targets: &Tensor<B, 2>,
@@ -196,7 +196,7 @@ impl NeuralEvaluator {
         squared_diff.mean()
     }
 
-    /// モデルの初期化処理（既存モデルの読み込みまたは新規作成）
+    /// Model initialization process (load existing model or create a new one)
     fn initialize_model(
         model_save_path: &str,
         device: &NdArrayDevice,
@@ -211,7 +211,7 @@ impl NeuralEvaluator {
         Ok(model)
     }
 
-    /// 1バッチの学習処理
+    /// Process one batch of training
     fn process_training_batch(
         model: NnModel<Autodiff<NdArray>>,
         batch_inputs: &[Vec<f32>],
@@ -250,7 +250,7 @@ impl NeuralEvaluator {
         (updated_model, loss_value)
     }
 
-    /// 進捗表示の更新
+    /// Update progress display
     fn update_progress_display(
         processed_samples: usize,
         target_count: usize,
@@ -280,7 +280,7 @@ impl NeuralEvaluator {
             .to_string();
 
         print!(
-            "\r  進捗: {}/{} ({:.1}%) - 経過: {:.1}秒 - 速度: {:.0} サンプル/秒 - 残り: {:.1}分 (予想終了: {})    ",
+            "\r  Progress: {}/{} ({:.1}%) - Elapsed: {:.1}s - Speed: {:.0} samples/sec - Remaining: {:.1}min (Estimated end: {})    ",
             processed_samples,
             target_count,
             progress_percent,
@@ -292,18 +292,18 @@ impl NeuralEvaluator {
         io::stdout().flush().unwrap();
     }
 
-    /// モデル保存処理
+    /// Save model checkpoint
     fn save_model_checkpoint(
         model: &NnModel<Autodiff<NdArray>>,
         model_save_path: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
         model.clone().save_file(model_save_path, &recorder)?;
-        println!("モデルを保存しました: {}", model_save_path);
+        println!("Model saved to: {}", model_save_path);
         Ok(())
     }
 
-    /// 学習データを取得してモデルを訓練（ストリーミング処理で全データを使用）
+    /// Get training data and train the model (using all data with streaming)
     pub fn train_model(
         &self,
         min_games: i32,
@@ -313,14 +313,14 @@ impl NeuralEvaluator {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let db = self.get_db()?;
         let start_time = Instant::now();
-        println!("モデルの訓練を開始します...");
+        println!("Starting model training...");
 
         let total_count = db.count_records_for_training(min_games)?;
         let target_count = max_samples.unwrap_or(total_count).min(total_count);
-        println!("総レコード数: {} (使用: {})", total_count, target_count);
+        println!("Total records: {} (using: {})", total_count, target_count);
 
         if target_count == 0 {
-            return Err("学習データが見つかりません".into());
+            return Err("No training data found".into());
         }
 
         const DB_FETCH_BATCH_SIZE: usize = 1000;
@@ -331,7 +331,7 @@ impl NeuralEvaluator {
         let mut optim = optim_config.init();
 
         println!(
-            "学習を開始します: エポック数={}, バッチサイズ={}",
+            "Starting training: Epochs={}, Batch size={}",
             training_config.num_epochs, training_config.batch_size
         );
 
@@ -348,7 +348,7 @@ impl NeuralEvaluator {
                 training_config.learning_rate
             };
 
-            println!("エポック {} 開始...", epoch);
+            println!("Starting epoch {}...", epoch);
 
             let mut db_offset = 0;
             let mut processed_samples = 0;
@@ -425,7 +425,7 @@ impl NeuralEvaluator {
 
             let avg_loss = total_loss / batch_count as f32;
             println!(
-                "エポック {} 完了: 平均損失 = {:.6}, 経過時間 = {:.2}秒",
+                "Epoch {} completed: Average loss = {:.6}, Elapsed time = {:.2}s",
                 epoch,
                 avg_loss,
                 epoch_start_time.elapsed().as_secs_f64()
@@ -438,30 +438,30 @@ impl NeuralEvaluator {
                 } else {
                     patience_counter += 1;
                     if patience_counter >= training_config.early_stopping_patience {
-                        println!("早期停止: エポック {} で学習を終了します", epoch);
+                        println!("Early stopping: Stopping training at epoch {}", epoch);
                         break;
                     }
                 }
             }
 
             if let Err(e) = Self::save_model_checkpoint(&model, &model_save_path) {
-                eprintln!("モデルの保存に失敗しました: {}", e);
+                eprintln!("Failed to save model: {}", e);
             }
         }
 
-        println!("学習が完了しました");
+        println!("Training completed");
         if let Err(e) = Self::save_model_checkpoint(&model, &model_save_path) {
-            eprintln!("最終モデルの保存に失敗しました: {}", e);
+            eprintln!("Failed to save final model: {}", e);
         }
 
         println!(
-            "モデル訓練の総時間: {:.2}秒",
+            "Total model training time: {:.2}s",
             start_time.elapsed().as_secs_f64()
         );
         Ok(())
     }
 
-    /// モデルを読み込み、任意の盤面で推論を実行（評価関数実行）
+    /// Load the model and perform inference on any board state (evaluation function execution)
     pub fn evaluate_position(
         &self,
         board: &Board,
@@ -472,7 +472,7 @@ impl NeuralEvaluator {
             None => self
                 .model_path
                 .as_ref()
-                .ok_or("モデルパスが設定されていません")?
+                .ok_or("Model path is not set")?
                 .as_str(),
         };
         let device = NdArrayDevice::default();
@@ -491,7 +491,7 @@ impl NeuralEvaluator {
         Ok((white_win_rate, black_win_rate, draw_rate))
     }
 
-    /// 特定のレコードの詳細情報を取得
+    /// Get detailed information for a specific record
     pub fn get_record_details(
         &self,
         record_id: i64,
@@ -499,7 +499,7 @@ impl NeuralEvaluator {
         self.get_db()?.get_record_details(record_id)
     }
 
-    /// データベースの統計情報を取得
+    /// Get database statistics
     pub fn get_database_stats(
         &self,
     ) -> Result<(i64, i64, i64), Box<dyn std::error::Error + Send + Sync>> {

@@ -22,8 +22,8 @@ mod tests {
         let evaluator = SimpleEvaluator::new();
 
         let score = evaluator.evaluate(&board, ColorType::Black);
-        // 初期局面では先後同じ駒配置なので、評価値は0に近いはず
-        assert!(score.abs() < 100.0, "初期局面の評価値が異常です: {}", score);
+        // In the initial position, the piece placement is the same for both players, so the evaluation value should be close to 0
+        assert!(score.abs() < 100.0, "The evaluation value of the initial position is abnormal: {}", score);
     }
 
     #[test]
@@ -34,9 +34,9 @@ mod tests {
         let evaluator = SimpleEvaluator::new();
         let result = search.search(&board, ColorType::Black, 2, Some(&evaluator));
 
-        assert!(result.nodes_searched > 0, "ノードが探索されませんでした");
-        assert!(result.best_move.is_some(), "最善手が見つかりませんでした");
-        assert!(result.score.is_finite(), "評価値が有限ではありません");
+        assert!(result.nodes_searched > 0, "No nodes were searched");
+        assert!(result.best_move.is_some(), "No best move was found");
+        assert!(result.score.is_finite(), "The evaluation value is not finite");
     }
 
     #[test]
@@ -47,9 +47,9 @@ mod tests {
         let evaluator = SimpleEvaluator::new();
         let result = search.search(&board, ColorType::Black, 2, Some(&evaluator));
 
-        assert!(result.nodes_searched > 0, "ノードが探索されませんでした");
-        assert!(result.best_move.is_some(), "最善手が見つかりませんでした");
-        assert!(result.score.is_finite(), "評価値が有限ではありません");
+        assert!(result.nodes_searched > 0, "No nodes were searched");
+        assert!(result.best_move.is_some(), "No best move was found");
+        assert!(result.score.is_finite(), "The evaluation value is not finite");
     }
 
     #[test]
@@ -63,16 +63,16 @@ mod tests {
         let alphabeta_result =
             alphabeta_search.search(&board, ColorType::Black, 2, Some(&evaluator));
 
-        // Alpha-Betaは枝刈りにより、MinMaxよりも少ないノードで探索する
+        // Alpha-Beta searches fewer nodes than MinMax due to pruning
         assert!(
             alphabeta_result.nodes_searched <= minmax_result.nodes_searched,
-            "Alpha-Betaのノード数がMinMaxより多い: Alpha-Beta={}, MinMax={}",
+            "The number of nodes in Alpha-Beta is greater than in MinMax: Alpha-Beta={}, MinMax={}",
             alphabeta_result.nodes_searched,
             minmax_result.nodes_searched
         );
 
-        // 評価値は同じ手を選ぶ場合、同じになる
-        // ただし、枝刈りにより異なる手を選ぶ場合もあるため、厳密に等しくする必要はない
+        // The evaluation value will be the same if the same move is chosen
+        // However, it is not necessary for them to be strictly equal because different moves may be chosen due to pruning
     }
 
     #[test]
@@ -85,8 +85,8 @@ mod tests {
 
         let result = search_engine.search(&board, ColorType::Black, 2);
 
-        assert!(result.nodes_searched > 0, "ノードが探索されませんでした");
-        assert!(result.best_move.is_some(), "最善手が見つかりませんでした");
+        assert!(result.nodes_searched > 0, "No nodes were searched");
+        assert!(result.best_move.is_some(), "No best move was found");
     }
 
     #[test]
@@ -99,22 +99,22 @@ mod tests {
         let result_depth_2 = search.search(&board, ColorType::Black, 2, Some(&evaluator));
         let result_depth_3 = search.search(&board, ColorType::Black, 3, Some(&evaluator));
 
-        // 深度が深いほど、探索ノード数は増える
+        // The deeper the search, the more nodes are searched
         assert!(
             result_depth_1.nodes_searched <= result_depth_2.nodes_searched,
-            "深度2のノード数が異常"
+            "The number of nodes at depth 2 is abnormal"
         );
         assert!(
             result_depth_2.nodes_searched <= result_depth_3.nodes_searched,
-            "深度3のノード数が異常"
+            "The number of nodes at depth 3 is abnormal"
         );
     }
 
     #[test]
     fn test_endgame_position() {
-        // 終盤局面のテスト
+        // Test endgame position
         let mut board = Board::new();
-        // 簡単な終盤局面を設定
+        // Set up a simple endgame position
         board.deploy(
             Address::from_numbers(5, 5).to_index(),
             PieceType::King,
@@ -131,15 +131,15 @@ mod tests {
 
         let result = search.search(&board, ColorType::Black, 3, Some(&evaluator));
 
-        assert!(result.nodes_searched > 0, "ノードが探索されませんでした");
-        assert!(result.best_move.is_some(), "最善手が見つかりませんでした");
+        assert!(result.nodes_searched > 0, "No nodes were searched");
+        assert!(result.best_move.is_some(), "No best move was found");
     }
 
     #[test]
     fn test_no_legal_moves() {
-        // 合法手がない局面（王手回避不能）
+        // Position with no legal moves (checkmate cannot be avoided)
         let mut board = Board::new();
-        // 不可能な局面ではなく、実際に合法手がない可能性をテスト
+        // Instead of an impossible position, test the possibility of actually having no legal moves
         board.startpos();
 
         let search = AlphaBetaSearchStrategy::new(1000);
@@ -147,16 +147,16 @@ mod tests {
 
         let result = search.search(&board, ColorType::Black, 1, Some(&evaluator));
 
-        // 合法手がある場合は、最善手が見つかる
-        // 合法手がない場合は、評価値が返される
-        assert!(result.score.is_finite(), "評価値が有限ではありません");
+        // If there are legal moves, the best move will be found
+        // If there are no legal moves, an evaluation value will be returned
+        assert!(result.score.is_finite(), "The evaluation value is not finite");
     }
 
     #[test]
     fn test_piece_values() {
         let evaluator = SimpleEvaluator::new();
 
-        // 玉が最重要であることを確認
+        // Check that the king is the most important piece
         let king_value = evaluator.evaluate(
             &{
                 let mut b = Board::new();
@@ -184,7 +184,7 @@ mod tests {
 
         assert!(
             king_value > pawn_value,
-            "玉の価値が歩より低い: king={}, pawn={}",
+            "The value of the king is lower than the pawn: king={}, pawn={}",
             king_value,
             pawn_value
         );

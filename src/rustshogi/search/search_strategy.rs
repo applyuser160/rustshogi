@@ -5,7 +5,7 @@ use super::super::evaluator::simple::SimpleEvaluator;
 use super::super::moves::Move;
 use pyo3::prelude::*;
 
-/// 評価結果を表す構造体
+/// Structure representing the evaluation result
 #[derive(Debug, Clone)]
 #[pyclass]
 pub struct EvaluationResult {
@@ -17,18 +17,18 @@ pub struct EvaluationResult {
     pub nodes_searched: u64,
 }
 
-/// 探索戦略のトレイト
+/// Trait for search strategies
 pub trait SearchStrategy {
-    /// 探索を実行する
+    /// Execute a search
     ///
     /// # Arguments
-    /// * `board` - 現在の盤面
-    /// * `color` - 手番の色
-    /// * `depth` - 探索深度
-    /// * `evaluator` - 評価関数（オプション）
+    /// * `board` - The current board state
+    /// * `color` - The color of the current player
+    /// * `depth` - The search depth
+    /// * `evaluator` - The evaluation function (optional)
     ///
     /// # Returns
-    /// 評価結果
+    /// The evaluation result
     fn search(
         &self,
         board: &Board,
@@ -38,12 +38,12 @@ pub trait SearchStrategy {
     ) -> EvaluationResult;
 }
 
-/// デフォルト評価関数の取得
+/// Get the default evaluation function
 pub fn get_default_evaluator() -> SimpleEvaluator {
     SimpleEvaluator::new()
 }
 
-/// 手がない場合の処理
+/// Handle the case where there are no moves
 pub fn handle_no_moves(
     evaluator: &dyn Evaluator,
     board: &Board,
@@ -56,8 +56,8 @@ pub fn handle_no_moves(
     }
 }
 
-/// 探索の共通初期化処理
-/// 評価関数の準備、手の取得、初期化を行い、探索を実行するためのヘルパー関数
+/// Common initialization process for search
+/// A helper function to prepare the evaluation function, get moves, initialize, and execute the search
 pub fn search_helper<F>(
     board: &Board,
     color: ColorType,

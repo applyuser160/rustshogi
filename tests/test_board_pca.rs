@@ -17,7 +17,7 @@ fn test_board_to_vector_no_compression() {
     let board = Board::new();
     let vector = board.to_vector(None);
 
-    // 2304 (盤面) + 16 (持ち駒) = 2320次元
+    // 2304 (board) + 16 (hand) = 2320 dimensions
     assert_eq!(vector.len(), 2320);
 }
 
@@ -33,7 +33,7 @@ fn test_board_to_vector_with_compression() {
 fn test_board_to_vector_with_pca() {
     let board = Board::new();
 
-    // サンプルデータでPCAを学習
+    // Learn PCA with sample data
     let samples = vec![vec![1.0; 2320], vec![2.0; 2320], vec![3.0; 2320]];
     let pca_transform = learn_simple_pca(&samples, 50);
     set_global_pca_transform(pca_transform);
@@ -47,7 +47,7 @@ fn test_board_startpos() {
     let mut board = Board::new();
     board.startpos();
 
-    // 開始局面では駒が配置されているはず
+    // Pieces should be placed in the starting position
     assert_ne!(board.has_piece, BitBoard::new());
 }
 
@@ -56,7 +56,7 @@ fn test_board_deploy() {
     let mut board = Board::new();
     board.deploy(0, PieceType::King, ColorType::Black);
 
-    // 駒が配置されているはず
+    // A piece should be placed
     assert_ne!(board.has_piece, BitBoard::new());
 }
 
@@ -73,10 +73,10 @@ fn test_board_get_piece() {
 #[test]
 fn test_board_is_finished() {
     let mut board = Board::new();
-    board.startpos(); // 開始局面を設定
+    board.startpos(); // Set the starting position
     let (is_finished, winner) = board.is_finished();
 
-    // 開始局面では終了していない
+    // The game should not be finished at the starting position
     assert!(!is_finished);
     assert_eq!(winner, ColorType::None);
 }
