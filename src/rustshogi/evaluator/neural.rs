@@ -15,6 +15,9 @@ use burn::tensor::backend::AutodiffBackend;
 use chrono;
 use pyo3::prelude::*;
 use rand;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+use rayon::prelude::*;
 use std::io::{self, Write};
 use std::path::Path;
 use std::time::Instant;
@@ -186,7 +189,32 @@ impl NeuralEvaluator {
         Ok(updated_count)
     }
 
-    /// Loss function (for AutodiffBackend)
+    /// Loss function (for AutodiffBackend) - Cross Entropy Loss
+    /// Suitable for predicting probability distributions (white_win_rate, black_win_rate, draw_rate)
+    /// Treats each element as an independent probability and calculates binary cross entropy
+    fn cross_entropy_loss_autodiff<B: AutodiffBackend>(
+        predictions: &Tensor<B, 2>,
+        targets: &Tensor<B, 2>,
+    ) -> Tensor<B, 1> {
+        let epsilon = 1e-8;
+        // Clip predictions to [epsilon, 1.0 - epsilon] range for numerical stability
+        let clipped_pred = predictions.clone().clamp(epsilon, 1.0 - epsilon);
+        // Calculate log of predictions
+        let log_pred = clipped_pred.clone().log();
+        // Calculate log of (1 - pred) using tensor subtraction
+        let ones_pred = Tensor::ones_like(&clipped_pred);
+        let one_minus_pred = ones_pred - clipped_pred;
+        let log_one_minus_pred = one_minus_pred.log();
+        // Binary cross entropy: -(target * log(pred) + (1 - target) * log(1 - pred))
+        let ones_target = Tensor::ones_like(targets);
+        let neg_log_likelihood =
+            targets.clone() * log_pred + (ones_target - targets.clone()) * log_one_minus_pred;
+        // Calculate average over the entire batch
+        neg_log_likelihood.sum().neg() / (predictions.dims()[0] as f32)
+    }
+
+    /// MSE Loss function (for backward compatibility)
+    #[allow(dead_code)]
     fn mse_loss_autodiff<B: AutodiffBackend>(
         predictions: &Tensor<B, 2>,
         targets: &Tensor<B, 2>,
@@ -240,7 +268,7 @@ impl NeuralEvaluator {
                 .reshape([batch_size, output_dim]);
 
         let predictions = model.forward(batch_input_tensor);
-        let loss = Self::mse_loss_autodiff(&predictions, &batch_target_tensor);
+        let loss = Self::cross_entropy_loss_autodiff(&predictions, &batch_target_tensor);
         let loss_value: f32 = loss.clone().into_scalar();
 
         let grads = loss.backward();
@@ -280,7 +308,7 @@ impl NeuralEvaluator {
             .to_string();
 
         print!(
-            "\r  Progress: {}/{} ({:.1}%) - Elapsed: {:.1}s - Speed: {:.0} samples/sec - Remaining: {:.1}min (Estimated end: {})    ",
+            "\r Progress: {}/{} ({:.1}%) - Elapsed: {:.1}s - Speed: {:.0} samples/sec - Remaining: {:.1}min (ETA: {})",
             processed_samples,
             target_count,
             progress_percent,
@@ -355,35 +383,51 @@ impl NeuralEvaluator {
             const PROGRESS_UPDATE_INTERVAL: usize = 1000;
 
             loop {
-                let batch_records =
+                let mut batch_records =
                     db.fetch_batch_from_db(min_games, DB_FETCH_BATCH_SIZE, db_offset)?;
                 if batch_records.is_empty() {
                     break;
                 }
 
-                let mut batch_inputs = Vec::new();
-                let mut batch_targets = Vec::new();
+                // Shuffle data to randomize training order
+                let mut rng = thread_rng();
+                batch_records.shuffle(&mut rng);
 
-                for (board_sfen, white_wins, black_wins, total_games) in batch_records {
-                    let board = Board::from_sfen(board_sfen);
-                    batch_inputs.push(board.to_vector(None));
+                // Parallel preprocessing
+                let results: Vec<_> = batch_records
+                    .par_iter()
+                    .map(|(board_sfen, white_wins, black_wins, total_games)| {
+                        let board = Board::from_sfen(board_sfen.clone());
+                        let input = board.to_vector(None);
 
-                    let white_win_rate = if total_games > 0 {
-                        white_wins as f32 / total_games as f32
-                    } else {
-                        0.5
-                    };
-                    let black_win_rate = if total_games > 0 {
-                        black_wins as f32 / total_games as f32
-                    } else {
-                        0.5
-                    };
-                    let draw_rate = if total_games > 0 {
-                        (total_games - white_wins - black_wins) as f32 / total_games as f32
-                    } else {
-                        0.0
-                    };
-                    batch_targets.push(vec![white_win_rate, black_win_rate, draw_rate]);
+                        let total_games_f = *total_games as f32;
+                        let white_win_rate = if *total_games > 0 {
+                            *white_wins as f32 / total_games_f
+                        } else {
+                            0.5
+                        };
+                        let black_win_rate = if *total_games > 0 {
+                            *black_wins as f32 / total_games_f
+                        } else {
+                            0.5
+                        };
+                        let draw_rate = if *total_games > 0 {
+                            (total_games_f - *white_wins as f32 - *black_wins as f32)
+                                / total_games_f
+                        } else {
+                            0.0
+                        };
+
+                        (input, vec![white_win_rate, black_win_rate, draw_rate])
+                    })
+                    .collect();
+
+                let mut batch_inputs = Vec::with_capacity(results.len());
+                let mut batch_targets = Vec::with_capacity(results.len());
+
+                for (input, target) in results {
+                    batch_inputs.push(input);
+                    batch_targets.push(target);
                 }
 
                 for batch_start in (0..batch_inputs.len()).step_by(training_config.batch_size) {
