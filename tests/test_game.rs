@@ -23,7 +23,7 @@ fn test_game_input_board() {
     let mut game2 = Game::new();
     game2.input_board(sfen2);
     assert_eq!(game1.board.to_string(), game2.board.to_string());
-    // board.to_string()は持ち駒を含むSFEN形式で出力されるため、期待値を更新
+    // board.to_string() outputs in SFEN format including hand pieces, so the expected value is updated
     assert_eq!(
         "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL -",
         game1.board.to_string()
@@ -47,20 +47,20 @@ fn test_game_random_move_parallel() {
     let threads = 2;
     let results = game.random_move_parallel(num, threads);
 
-    // 結果が空でないことを確認
+    // Check that the results are not empty
     assert!(!results.is_empty());
 
-    // 全体の総ゲーム数がnumと一致することを確認
+    // Check that the total number of games equals num
     let total_games: u64 = results.iter().map(|r| r.total_games).sum();
     assert_eq!(total_games, num as u64);
 
-    // 各結果の妥当性を確認
+    // Check the validity of each result
     for result in &results {
-        // 白と黒の勝利数の合計が総ゲーム数以下であることを確認
+        // Check that the sum of white and black wins is less than or equal to the total games
         assert!(result.white_wins + result.black_wins <= result.total_games);
     }
 
-    // 結果の数が可能な手の数と一致することを確認
+    // Check that the number of results matches the number of possible moves
     let possible_moves = game.board.search_moves(game.turn, true);
     assert_eq!(results.len(), possible_moves.len());
 }
@@ -73,27 +73,27 @@ fn test_game_random_move_parallel_performance() {
     game.input_board("startpos".to_string());
     let num = 1000;
 
-    // シングルスレッドでの実行時間を測定
+    // Measure execution time with a single thread
     let start_single = Instant::now();
     let _results_single = game.random_move_parallel(num, 1);
     let duration_single = start_single.elapsed();
 
-    // マルチスレッドでの実行時間を測定（CPUコア数を使用）
+    // Measure execution time with multiple threads (using the number of CPU cores)
     let start_multi = Instant::now();
     let _results_multi = game.random_move_parallel(num, num_cpus::get());
     let duration_multi = start_multi.elapsed();
 
-    // 性能向上率を計算
+    // Calculate the speedup
     let speedup = duration_single.as_nanos() as f64 / duration_multi.as_nanos() as f64;
 
-    println!("シングルスレッド実行時間: {:?}", duration_single);
-    println!("マルチスレッド実行時間: {:?}", duration_multi);
-    println!("性能向上率: {:.2}x", speedup);
+    println!("Single-threaded execution time: {:?}", duration_single);
+    println!("Multi-threaded execution time: {:?}", duration_multi);
+    println!("Speedup: {:.2}x", speedup);
 
-    // 1.5倍以上の性能向上をアサーション
+    // Assert that the speedup is at least 1.5x
     assert!(
         speedup >= 1.5,
-        "マルチスレッドはシングルスレッドの1.5倍以上速くあるべきです。実際の性能向上率: {:.2}x",
+        "Multi-threading should be at least 1.5 times faster than single-threading. Actual speedup: {:.2}x",
         speedup
     );
 }

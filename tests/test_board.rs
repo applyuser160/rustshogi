@@ -72,19 +72,19 @@ fn test_board_search_moves_with_promote() {
     );
     let result = board.search_moves(ColorType::Black, true);
 
-    // 成る手が含まれていることを確認
+    // Check that promotion moves are included
     let promote_moves: Vec<&Move> = result.iter().filter(|m| m.get_is_promote()).collect();
     assert!(
         !promote_moves.is_empty(),
-        "成る手が含まれている必要があります"
+        "Promotion moves must be included"
     );
 
-    // 成る手の詳細を確認（デバッグ用）
+    // Check the details of the promotion moves (for debugging)
     for promote_move in &promote_moves {
-        println!("成る手: {}", promote_move.to_string());
+        println!("Promotion move: {}", promote_move.to_string());
     }
 
-    // 手数も確認（実際の値に修正）
+    // Also check the number of moves (corrected to the actual value)
     assert_eq!(result.len(), 91);
 }
 
@@ -94,38 +94,38 @@ fn test_board_execute_promote_move_and_to_string() {
         "1r1gs2nb/l3kPs1l/1pp3p2/p5spp/3pp4/N3P1PP1/l1P1GK2P/nBg5L/1+R3S1N1 GP3p".to_string(),
     );
 
-    // 成る手を取得
+    // Get promotion moves
     let moves = board.search_moves(ColorType::Black, true);
     let promote_moves: Vec<&Move> = moves.iter().filter(|m| m.get_is_promote()).collect();
     assert!(
         !promote_moves.is_empty(),
-        "成る手が含まれている必要があります"
+        "Promotion moves must be included"
     );
 
-    // 最初の成る手を実行
+    // Execute the first promotion move
     let promote_move = promote_moves[0];
-    println!("実行する成る手: {}", promote_move.to_string());
+    println!("Executing promotion move: {}", promote_move.to_string());
 
     board.execute_move(promote_move);
 
-    // SFEN文字列を取得して成った駒に+が付いていることを確認
+    // Get the SFEN string and check that the promoted piece has a '+'
     let sfen = board.to_string();
-    println!("実行後のSFEN: {}", sfen);
+    println!("SFEN after execution: {}", sfen);
 
-    // 成った駒の位置を確認
+    // Check the position of the promoted piece
     let to_address = promote_move.get_to();
     let piece = board.get_piece(to_address.to_index());
 
-    // 成った駒が成り駒であることを確認
-    assert!(piece.piece_type as u8 > 8, "駒が成っている必要があります");
+    // Check that the piece is promoted
+    assert!(piece.piece_type as u8 > 8, "The piece must be promoted");
 
-    // SFEN文字列に+が含まれていることを確認
+    // Check that the SFEN string contains a '+'
     assert!(
         sfen.contains("+"),
-        "SFEN文字列に成り駒を示す+が含まれている必要があります"
+        "The SFEN string must contain a '+' to indicate a promoted piece"
     );
 
-    // 特定の成り駒の種類を確認（実行した駒の種類に応じて）
+    // Check the type of the specific promoted piece (depending on the type of piece executed)
     match piece.piece_type {
         PieceType::Dragon => assert!(sfen.contains("+R")),
         PieceType::Horse => assert!(sfen.contains("+B")),
@@ -133,7 +133,7 @@ fn test_board_execute_promote_move_and_to_string() {
         PieceType::ProKnight => assert!(sfen.contains("+N")),
         PieceType::ProLance => assert!(sfen.contains("+L")),
         PieceType::ProPawn => assert!(sfen.contains("+P")),
-        _ => panic!("予期しない成り駒の種類: {:?}", piece.piece_type),
+        _ => panic!("Unexpected promoted piece type: {:?}", piece.piece_type),
     }
 }
 
@@ -182,17 +182,17 @@ fn test_board_to_string_startpos() {
     board.startpos();
     let sfen = board.to_string();
 
-    // SFEN形式の基本構造をチェック
-    assert!(sfen.contains(" ")); // 盤面と持ち駒の区切り
+    // Check the basic structure of the SFEN format
+    assert!(sfen.contains(" ")); // Separator between board and hand
     let parts: Vec<&str> = sfen.split(" ").collect();
     assert_eq!(parts.len(), 2);
 
-    // 盤面部分のチェック（9行、8個の'/'区切り）
+    // Check the board part (9 rows, 8 '/' separators)
     let board_part = parts[0];
     let slash_count = board_part.matches('/').count();
     assert_eq!(slash_count, 8);
 
-    // 持ち駒部分のチェック（初期状態では'-'）
+    // Check the hand part (should be '-' in the initial state)
     let hand_part = parts[1];
     assert_eq!(hand_part, "-");
 }
@@ -231,35 +231,35 @@ fn test_board_sfen_roundtrip() {
 fn test_board_sfen_with_promoted_pieces() {
     let mut board = Board::new();
 
-    // 成り駒を配置してテスト
+    // Place promoted pieces and test
     board.deploy(
         Address::from_numbers(5, 5).to_index(),
-        PieceType::Dragon, // 成り飛車
+        PieceType::Dragon, // Promoted Rook
         ColorType::Black,
     );
 
     board.deploy(
         Address::from_numbers(4, 4).to_index(),
-        PieceType::Horse, // 成り角
+        PieceType::Horse, // Promoted Bishop
         ColorType::White,
     );
 
     board.deploy(
         Address::from_numbers(3, 3).to_index(),
-        PieceType::ProSilver, // 成り銀
+        PieceType::ProSilver, // Promoted Silver
         ColorType::Black,
     );
 
-    // SFEN文字列を生成して確認
+    // Generate and check the SFEN string
     let sfen = board.to_string();
     println!("SFEN with promoted pieces: {}", sfen);
 
-    // 成り駒が+付きで表示されることを確認
-    assert!(sfen.contains("+R")); // 成り飛車（黒）
-    assert!(sfen.contains("+b")); // 成り角（白）
-    assert!(sfen.contains("+S")); // 成り銀（黒）
+    // Check that promoted pieces are displayed with a '+'
+    assert!(sfen.contains("+R")); // Promoted Rook (Black)
+    assert!(sfen.contains("+b")); // Promoted Bishop (White)
+    assert!(sfen.contains("+S")); // Promoted Silver (Black)
 
-    // 個別の駒の表示もテスト
+    // Also test the display of individual pieces
     let dragon_piece = Piece::from(ColorType::Black, PieceType::Dragon);
     let horse_piece = Piece::from(ColorType::White, PieceType::Horse);
     let pro_silver_piece = Piece::from(ColorType::Black, PieceType::ProSilver);
@@ -274,31 +274,31 @@ fn test_board_sfen_with_hand() {
     let mut board = Board::new();
     board.startpos();
 
-    // 駒を取る（持ち駒を増やす）ために、実際に駒を取る手を実行
-    // 先手の歩を後手の歩の位置に移動して取る
-    let from = Address::from_number(34); // 先手の歩
-    let to = Address::from_number(45); // 後手の歩の位置
+    // Execute a move to capture a piece (to increase hand pieces)
+    // Move Black's pawn to White's pawn's position to capture it
+    let from = Address::from_number(34); // Black's pawn
+    let to = Address::from_number(45); // White's pawn's position
     board.execute_move(&Move::from_standart(from, to, false));
 
     let sfen = board.to_string();
     let parts: Vec<&str> = sfen.split(" ").collect();
 
-    // 持ち駒部分が'-'でないことをチェック（駒を取ったので持ち駒があるはず）
-    // ただし、実際に駒を取れない場合は'-'のままになる可能性がある
-    // その場合は、手動で持ち駒を追加してテスト
+    // Check that the hand part is not '-' (since a piece was captured, there should be a hand piece)
+    // However, if the capture is not possible, it might remain '-'
+    // In that case, manually add a hand piece and test
     if parts[1] == "-" {
-        // 手動で持ち駒を追加
+        // Manually add a hand piece
         board.hand.add_piece(ColorType::Black, PieceType::Pawn);
         let sfen_with_hand = board.to_string();
         let parts_with_hand: Vec<&str> = sfen_with_hand.split(" ").collect();
         assert_ne!(parts_with_hand[1], "-");
 
-        // SFENから復元して同じ結果になることをチェック
+        // Check that restoring from SFEN gives the same result
         let restored_board = Board::from_sfen(sfen_with_hand.clone());
         let restored_sfen = restored_board.to_string();
         assert_eq!(sfen_with_hand, restored_sfen);
     } else {
-        // SFENから復元して同じ結果になることをチェック
+        // Check that restoring from SFEN gives the same result
         let restored_board = Board::from_sfen(sfen.clone());
         let restored_sfen = restored_board.to_string();
         assert_eq!(sfen, restored_sfen);

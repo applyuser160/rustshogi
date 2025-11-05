@@ -4,7 +4,7 @@ use super::super::evaluator::abst::Evaluator;
 use super::search_strategy::{self, EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
 
-/// MinMax探索アルゴリズム
+/// MinMax search algorithm
 #[pyclass]
 pub struct MinMaxSearchStrategy {
     max_nodes: u64,

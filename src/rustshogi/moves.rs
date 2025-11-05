@@ -26,7 +26,7 @@ impl Move {
     }
 
     fn base_constructor(&mut self, from: u16, to: u16, pro: u16, drop: u16) {
-        // ビット配置:
+        // Bit layout:
         // bit 15: drop (1 bit)
         // bit 14: promote (1 bit)
         // bits 13-7: to (7 bits)
@@ -102,7 +102,7 @@ impl Move {
     }
 
     pub fn get_piece(&self) -> piece::Piece {
-        // ドロップ手の場合、piece情報は下位7ビット（bits 0-6）に格納
+        // For a drop move, the piece information is stored in the lower 7 bits (bits 0-6)
         let v = (self.value & 0x7F) as u8;
         piece::Piece::from_u8(v)
     }

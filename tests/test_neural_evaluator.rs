@@ -11,10 +11,10 @@ use std::fs;
 #[test]
 fn test_evaluator_creation() {
     let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite("test.db".to_string())), None);
-    // db_pathはプライベートなので、データベース操作でテスト
+    // db_path is private, so test with a database operation
     assert!(evaluator.init_database().is_ok());
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file("test.db");
 }
 
@@ -23,7 +23,7 @@ fn test_database_initialization() {
     let test_db = "test_init.db";
     let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file(test_db);
 
     assert!(evaluator.init_database().is_ok());
@@ -36,14 +36,14 @@ fn test_random_board_generation() {
 
     evaluator.init_database().unwrap();
 
-    // generate_random_boardに問題があるため、基本的なデータベース操作のみテスト
-    // 実際のランダム盤面生成は別途修正が必要
+    // Since there is a problem with generate_random_board, test only basic database operations
+    // Actual random board generation needs to be fixed separately
     let stats = evaluator.get_database_stats().unwrap();
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file(test_db);
 
-    assert_eq!(stats.0, 0); // レコード数（空の状態）
+    assert_eq!(stats.0, 0); // Number of records (empty state)
 }
 
 #[test]
@@ -53,14 +53,14 @@ fn test_database_stats() {
 
     evaluator.init_database().unwrap();
 
-    // generate_random_boardに問題があるため、空のデータベースでテスト
+    // Since there is a problem with generate_random_board, test with an empty database
     let stats = evaluator.get_database_stats().unwrap();
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file(test_db);
 
-    assert_eq!(stats.0, 0); // レコード数（空の状態）
-    assert_eq!(stats.1, 0); // 総ゲーム数
+    assert_eq!(stats.0, 0); // Number of records (empty state)
+    assert_eq!(stats.1, 0); // Total games
 }
 
 #[test]
@@ -70,13 +70,13 @@ fn test_update_records_with_random_games() {
 
     evaluator.init_database().unwrap();
 
-    // generate_random_boardに問題があるため、空のデータベースでテスト
+    // Since there is a problem with generate_random_board, test with an empty database
     let result = evaluator.update_records_with_random_games(5, Some(1), 1);
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file(test_db);
 
-    // 空のデータベースなので更新されるレコードは0
+    // Since the database is empty, the number of updated records is 0
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
 }
@@ -89,12 +89,12 @@ fn test_evaluate_position_with_nonexistent_model() {
     let board = Board::new();
     let result = evaluator.evaluate_position(&board, Some("nonexistent_model.bin"));
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file(test_db);
 
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
-    // エラーメッセージの内容を確認して適切な文字列でテスト
+    // Check the error message content and test with the appropriate string
     assert!(
         error_msg.contains("FileNotFound")
             || error_msg.contains("ファイル")
@@ -121,7 +121,7 @@ fn test_train_model_with_no_data() {
 
     let result = evaluator.train_model(1, training_config, "test_model.bin".to_string(), None);
 
-    // テスト後にファイルを削除
+    // Delete files after the test
     let _ = fs::remove_file(test_db);
     let _ = fs::remove_file("test_model.bin");
 
@@ -129,7 +129,7 @@ fn test_train_model_with_no_data() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("学習データが見つかりません"));
+        .contains("No training data found"));
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn test_train_model_with_data() {
 
     evaluator.init_database().unwrap();
 
-    // generate_random_boardに問題があるため、空のデータベースでテスト
+    // Since there is a problem with generate_random_board, test with an empty database
     let training_config = TrainingConfig {
         learning_rate: 0.001,
         batch_size: 1,
@@ -157,16 +157,16 @@ fn test_train_model_with_data() {
         None,
     );
 
-    // テスト後にファイルを削除
+    // Delete files after the test
     let _ = fs::remove_file(test_db);
     let _ = fs::remove_file("test_model_with_data.bin");
 
-    // 空のデータベースなので学習データが見つからないエラーが期待される
+    // Since the database is empty, an error that no training data is found is expected
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("学習データが見つかりません"));
+        .contains("No training data found"));
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn test_train_model_with_sampling() {
         early_stopping_patience: 10,
     };
 
-    // max_samplesを指定してテスト
+    // Test with max_samples specified
     let result = evaluator.train_model(
         1,
         training_config,
@@ -194,16 +194,16 @@ fn test_train_model_with_sampling() {
         Some(100),
     );
 
-    // テスト後にファイルを削除
+    // Delete files after the test
     let _ = fs::remove_file(test_db);
     let _ = fs::remove_file("test_model_sampling.bin");
 
-    // 空のデータベースなので学習データが見つからないエラーが期待される
+    // Since the database is empty, an error that no training data is found is expected
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("学習データが見つかりません"));
+        .contains("No training data found"));
 }
 
 #[test]
@@ -223,7 +223,7 @@ fn test_train_model_with_sampling_none() {
         early_stopping_patience: 10,
     };
 
-    // max_samplesをNoneでテスト（全データ使用）
+    // Test with max_samples as None (using all data)
     let result = evaluator.train_model(
         1,
         training_config,
@@ -231,16 +231,16 @@ fn test_train_model_with_sampling_none() {
         None,
     );
 
-    // テスト後にファイルを削除
+    // Delete files after the test
     let _ = fs::remove_file(test_db);
     let _ = fs::remove_file("test_model_sampling_none.bin");
 
-    // 空のデータベースなので学習データが見つからないエラーが期待される
+    // Since the database is empty, an error that no training data is found is expected
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("学習データが見つかりません"));
+        .contains("No training data found"));
 }
 
 #[test]
@@ -250,15 +250,15 @@ fn test_get_database_stats_with_games() {
 
     evaluator.init_database().unwrap();
 
-    // generate_random_boardに問題があるため、空のデータベースでテスト
+    // Since there is a problem with generate_random_board, test with an empty database
     let stats = evaluator.get_database_stats().unwrap();
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file(test_db);
 
-    assert_eq!(stats.0, 0); // レコード数（空の状態）
-    assert_eq!(stats.1, 0); // 総ゲーム数
-    assert_eq!(stats.2, 0); // 平均ゲーム数
+    assert_eq!(stats.0, 0); // Number of records (empty state)
+    assert_eq!(stats.1, 0); // Total games
+    assert_eq!(stats.2, 0); // Average games
 }
 
 #[test]
@@ -266,39 +266,39 @@ fn test_multiple_operations_sequence() {
     let test_db = "test_sequence.db";
     let evaluator = NeuralEvaluator::new(Some(DatabaseType::Sqlite(test_db.to_string())), None);
 
-    // データベース初期化
+    // Initialize the database
     assert!(evaluator.init_database().is_ok());
 
-    // generate_random_boardに問題があるため、基本的な操作のみテスト
+    // Since there is a problem with generate_random_board, test only basic operations
     let stats1 = evaluator.get_database_stats().unwrap();
-    assert_eq!(stats1.0, 0); // レコード数（空の状態）
-    assert_eq!(stats1.1, 0); // 総ゲーム数
+    assert_eq!(stats1.0, 0); // Number of records (empty state)
+    assert_eq!(stats1.1, 0); // Total games
 
-    // 空のデータベースでの更新操作テスト
+    // Test update operation on an empty database
     let result2 = evaluator.update_records_with_random_games(2, Some(2), 1);
     assert!(result2.is_ok());
-    assert_eq!(result2.unwrap(), 0); // 更新されるレコードは0
+    assert_eq!(result2.unwrap(), 0); // The number of updated records is 0
 
-    // 統計情報確認（変更なし）
+    // Check statistics (no change)
     let stats2 = evaluator.get_database_stats().unwrap();
-    assert_eq!(stats2.0, 0); // レコード数（変更なし）
-    assert_eq!(stats2.1, 0); // 総ゲーム数（変更なし）
+    assert_eq!(stats2.0, 0); // Number of records (no change)
+    assert_eq!(stats2.1, 0); // Total games (no change)
 
-    // テスト後にファイルを削除
+    // Delete the file after the test
     let _ = fs::remove_file(test_db);
 }
 
 #[test]
 fn test_postgres_evaluator_creation() {
-    // PostgreSQLのテスト（実際の接続は行わない）
+    // PostgreSQL test (does not make an actual connection)
     let _evaluator = NeuralEvaluator::new(
         Some(DatabaseType::Postgres(
             "postgresql://user:password@localhost/dbname".to_string(),
         )),
         None,
     );
-    // データベースタイプが正しく設定されていることを確認
-    // 実際の接続テストは環境に依存するため、ここでは作成のみテスト
+    // Check that the database type is set correctly
+    // Since the actual connection test depends on the environment, only creation is tested here
 }
 
 #[test]
@@ -306,15 +306,15 @@ fn test_database_type_enum() {
     let sqlite_type = DatabaseType::Sqlite("test.db".to_string());
     let postgres_type = DatabaseType::Postgres("postgresql://localhost/db".to_string());
 
-    // 列挙型の作成が正常に行われることを確認
+    // Check that the enum is created correctly
     match sqlite_type {
         DatabaseType::Sqlite(path) => assert_eq!(path, "test.db"),
-        _ => panic!("SQLiteタイプが正しく設定されていません"),
+        _ => panic!("SQLite type is not set correctly"),
     }
 
     match postgres_type {
         DatabaseType::Postgres(conn_str) => assert_eq!(conn_str, "postgresql://localhost/db"),
-        _ => panic!("PostgreSQLタイプが正しく設定されていません"),
+        _ => panic!("PostgreSQL type is not set correctly"),
     }
 }
 
@@ -323,14 +323,13 @@ fn test_generate_random_board_hand_consistency() {
     let mut game = Game::new();
     game.input_board("startpos".to_string());
 
-    // ランダム盤面を生成
+    // Generate a random board
     let random_board = game.generate_random_board();
 
-    // 持ち駒の整合性を確認
+    // Check the consistency of hand pieces
     let hand = &random_board.hand;
 
-    // 全ての駒種について持ち駒の数を確認use rustshogi::color::ColorType;use rustshogi::piece::PieceType;
-
+    // Check the number of hand pieces for all piece types
     let mut total_hand_pieces = 0;
 
     for color in [ColorType::Black, ColorType::White] {
@@ -347,14 +346,14 @@ fn test_generate_random_board_hand_consistency() {
             let count = hand.get_count(color, piece_type);
             total_hand_pieces += count;
 
-            // 持ち駒の数が妥当な範囲内であることを確認（0以上、理論上の最大値以下）
+            // Check that the number of hand pieces is within a valid range (0 or more, less than or equal to the theoretical maximum)
             assert!(
                 count <= 18,
-                "持ち駒の数が異常に多いです: {}の{}が{}個",
+                "The number of hand pieces is abnormally large: {} {} has {} pieces",
                 if color == ColorType::Black {
-                    "先手"
+                    "Black"
                 } else {
-                    "後手"
+                    "White"
                 },
                 piece_type.get_name(),
                 count
@@ -362,30 +361,39 @@ fn test_generate_random_board_hand_consistency() {
         }
     }
 
-    // SFEN文字列の持ち駒部分の整合性を確認
+    // Check the consistency of the hand part of the SFEN string
     let sfen = random_board.to_string();
     let parts: Vec<&str> = sfen.split(' ').collect();
     assert_eq!(
         parts.len(),
         2,
-        "SFEN文字列の形式が正しくありません: {}",
+        "The SFEN string format is incorrect: {}",
         sfen
     );
 
     if total_hand_pieces == 0 {
-        // 持ち駒がない場合は'-'であることを確認
+        // If there are no hand pieces, check that it is '-'
         assert_eq!(
             parts[1], "-",
-            "持ち駒がないのにSFEN文字列が'-'ではありません: {}",
+            "The SFEN string is not '-' even though there are no hand pieces: {}",
             parts[1]
         );
     } else {
-        // 持ち駒がある場合は空文字列でないことを確認
-        assert!(!parts[1].is_empty(), "持ち駒があるのにSFEN文字列が空です");
-        assert_ne!(parts[1], "-", "持ち駒があるのにSFEN文字列が'-'です");
+        // If there are hand pieces, check that the string is not empty
+        assert!(
+            !parts[1].is_empty(),
+            "The SFEN string is empty even though there are hand pieces"
+        );
+        assert_ne!(
+            parts[1], "-",
+            "The SFEN string is '-' even though there are hand pieces"
+        );
     }
 
-    println!("生成された盤面の持ち駒総数: {}", total_hand_pieces);
+    println!(
+        "Total number of hand pieces on the generated board: {}",
+        total_hand_pieces
+    );
     println!("SFEN: {}", sfen);
 }
 
@@ -394,27 +402,27 @@ fn test_generate_random_board_promoted_pieces() {
     let mut game = Game::new();
     game.input_board("startpos".to_string());
 
-    // 成った駒が含まれる盤面を生成するために、複数回試行
+    // Try multiple times to generate a board that includes promoted pieces
     let mut found_promoted_piece = false;
     let mut test_count = 0;
-    const MAX_ATTEMPTS: usize = 50; // 最大50回試行
+    const MAX_ATTEMPTS: usize = 50; // Try up to 50 times
 
     while !found_promoted_piece && test_count < MAX_ATTEMPTS {
         let mut test_game = Game::new();
         test_game.input_board("startpos".to_string());
 
-        // ランダム盤面を生成
+        // Generate a random board
         let random_board = test_game.generate_random_board();
         let sfen = random_board.to_string();
 
-        // 成った駒（+付きの駒）が含まれているかチェック
+        // Check if it contains promoted pieces (pieces with '+')
         if sfen.contains("+") {
             found_promoted_piece = true;
 
-            // 成った駒が正しく+付きで表示されていることを確認
-            println!("成った駒を含む盤面を発見: {}", sfen);
+            // Check that the promoted pieces are displayed correctly with a '+'
+            println!("Found a board with promoted pieces: {}", sfen);
 
-            // SFEN文字列を解析して成った駒を確認
+            // Parse the SFEN string to check for promoted pieces
             let board_part = sfen.split(' ').next().unwrap();
             let mut promoted_count = 0;
 
@@ -426,29 +434,28 @@ fn test_generate_random_board_promoted_pieces() {
 
             assert!(
                 promoted_count > 0,
-                "SFEN文字列に'+'が含まれていません: {}",
+                "The SFEN string does not contain '+': {}",
                 sfen
             );
 
-            // 個別の駒の表示も確認use rustshogi::address::Address;
-
-            // 盤面の各マスをチェックして成った駒を確認
+            // Also check the display of individual pieces
+            // Check each square of the board for promoted pieces
             for row in 1..=9 {
                 for col in 1..=9 {
                     let index = Address::from_numbers(col, row).to_index();
                     let piece = random_board.get_piece(index);
 
                     if piece.piece_type as u8 > 8 {
-                        // 成った駒のIDは8より大きい
+                        // The ID of a promoted piece is greater than 8
                         let piece_str = piece.to_string();
                         assert!(
                             piece_str.starts_with("+"),
-                            "成った駒{}が'+'で始まっていません: {}",
+                            "The promoted piece {} does not start with '+': {}",
                             piece.piece_type.get_name(),
                             piece_str
                         );
 
-                        println!("成った駒発見: {} at ({}, {})", piece_str, col, row);
+                        println!("Found promoted piece: {} at ({}, {})", piece_str, col, row);
                     }
                 }
             }
@@ -459,40 +466,42 @@ fn test_generate_random_board_promoted_pieces() {
 
     if !found_promoted_piece {
         println!(
-            "{}回の試行で成った駒を含む盤面が見つかりませんでした",
+            "A board with promoted pieces was not found after {} attempts",
             MAX_ATTEMPTS
         );
-        // 成った駒が見つからない場合でも、テストは成功とする（ランダム性のため）
-        // ただし、手動で成った駒を配置してテストする
+        // Even if a promoted piece is not found, the test is considered successful (due to randomness)
+        // However, test by manually placing promoted pieces
         let mut manual_game = Game::new();
         manual_game.input_board("startpos".to_string());
 
-        // 手動で成った駒を配置use rustshogi::address::Address;use rustshogi::color::ColorType;use rustshogi::piece::PieceType;
-
+        // Manually place promoted pieces
         manual_game.board.deploy(
             Address::from_numbers(5, 5).to_index(),
-            PieceType::Dragon, // 成り飛車
+            PieceType::Dragon, // Promoted Rook
             ColorType::Black,
         );
 
         manual_game.board.deploy(
             Address::from_numbers(4, 4).to_index(),
-            PieceType::Horse, // 成り角
+            PieceType::Horse, // Promoted Bishop
             ColorType::White,
         );
 
         let manual_sfen = manual_game.board.to_string();
-        println!("手動で成った駒を配置した盤面: {}", manual_sfen);
+        println!(
+            "Board with manually placed promoted pieces: {}",
+            manual_sfen
+        );
 
-        // 手動配置した成った駒が+付きで表示されることを確認
+        // Check that the manually placed promoted pieces are displayed with a '+'
         assert!(
             manual_sfen.contains("+R"),
-            "成り飛車が'+R'で表示されていません: {}",
+            "Promoted Rook is not displayed as '+R': {}",
             manual_sfen
         );
         assert!(
             manual_sfen.contains("+b"),
-            "成り角が'+b'で表示されていません: {}",
+            "Promoted Bishop is not displayed as '+b': {}",
             manual_sfen
         );
     }
