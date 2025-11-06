@@ -196,7 +196,7 @@ impl NeuralEvaluator {
         predictions: &Tensor<B, 2>,
         targets: &Tensor<B, 2>,
     ) -> Tensor<B, 1> {
-        let epsilon = 1e-8;
+        let epsilon = 1e-5;
         // Clip predictions to [epsilon, 1.0 - epsilon] range for numerical stability
         let clipped_pred = predictions.clone().clamp(epsilon, 1.0 - epsilon);
         // Calculate log of predictions
