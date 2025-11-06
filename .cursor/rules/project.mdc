@@ -1,0 +1,171 @@
+---
+alwaysApply: true
+---
+
+# RustShogi プロジェクトコンテキスト
+
+## プロジェクト概要
+
+RustShogiは、Rustで実装された高性能な将棋ライブラリです。Pythonバインディングを提供し、Pythonアプリケーションから使用できます。
+
+- **言語**: Rust 2021 Edition
+- **バージョン**: 0.1.0
+- **ライセンス**: MIT License
+- **Pythonサポート**: Python 3.8+
+- **ビルドシステム**: Cargo (maturinを使用してPythonパッケージ化)
+
+## 主要機能
+
+### コア機能
+- ⚡ 高性能なRust実装
+- 🐍 Pythonバインディングサポート
+- 💾 メモリ効率的なデータ構造
+- ✅ 完全な将棋ルール実装
+
+### パフォーマンス最適化
+- ビットボードを使用した効率的な盤面表現
+- メモリ効率的なデータ構造（例：u16 Move表現）
+- SIMD命令の活用
+- ゼロコスト抽象化
+
+## プロジェクト構造
+
+### 主要モジュール
+
+#### 基本データ型
+- `address.rs` - 座標表現（Addressクラス）
+- `color.rs` - プレイヤー色（ColorType列挙型：Black/White）
+- `piece.rs` - 駒の種類と表現（PieceType列挙型、Pieceクラス）
+- `moves.rs` - 手の表現（Moveクラス）
+- `hand.rs` - 持ち駒管理（Handクラス）
+
+#### 盤面とゲーム管理
+- `board.rs` - 盤面表現と操作（Boardクラス）
+  - ビットボードを使用した盤面表現
+  - 合法手生成（`search_moves`）
+  - 手の実行（`execute_move`）
+  - 駒の配置（`deploy`）
+  - SFEN形式のサポート
+- `game.rs` - ゲーム状態管理（Gameクラス）
+  - ゲーム進行管理
+  - 勝敗判定（`is_finished`）
+  - ランダムプレイ（`random_play`）
+
+#### 評価関数
+- `evaluator/mod.rs` - 評価関数モジュール
+  - `abst.rs` - 評価関数トレイト定義
+  - `simple.rs` - SimpleEvaluator（シンプルな評価関数）
+  - `neural.rs` - NeuralEvaluator（ニューラルネットワーク評価関数）
+  - `database.rs` - データベース評価関数
+
+#### 探索アルゴリズム
+- `search/mod.rs` - 探索モジュール
+  - `engine.rs` - SearchEngine（探索エンジン）
+  - `search_strategy.rs` - 探索戦略トレイト
+  - `alphabeta.rs` - AlphaBetaSearchStrategy（アルファベータ法）
+  - `minmax.rs` - MinMaxSearchStrategy（ミニマックス法）
+
+#### その他のユーティリティ
+- `bitboard.rs` - ビットボード実装
+- `direction.rs` - 方向ベクトル
+- `move_pattern.rs` - 手のパターン
+- `random.rs` - 乱数生成
+- `nn_model.rs` - ニューラルネットワークモデル
+- `pca.rs` - PCA圧縮
+- `mctsresult.rs` - MCTS結果
+
+## 主要な依存関係
+
+### コア依存関係
+- `pyo3` (0.25.0) - Pythonバインディング
+- `rand` (0.8.5) - 乱数生成
+- `strum` (0.27.2) - 列挙型ユーティリティ
+- `rayon` (1.8.1) - 並列処理
+- `num_cpus` (1.16.0) - CPU数取得
+- `lru` (0.12.5) - LRUキャッシュ
+- `once_cell` (1.19.0) - 遅延初期化
+
+### 機械学習・数値計算
+- `ndarray` (0.15) - 多次元配列
+- `nalgebra` (0.33) - 線形代数
+- `burn` (0.18.0) - 深層学習フレームワーク
+
+### データベース
+- `rusqlite` (0.37) - SQLiteバインディング
+- `tokio-postgres` (0.7) - PostgreSQL非同期クライアント
+- `tokio` (1.0) - 非同期ランタイム
+- `chrono` (0.4) - 日時処理
+
+### シリアライゼーション
+- `serde` (1.0) - シリアライゼーション
+- `serde_json` (1.0) - JSONサポート
+
+## Python API
+
+### 主要クラス
+- `Address` - 座標表現
+- `ColorType` - プレイヤー色（Black/White/None）
+- `PieceType` - 駒の種類（King, Gold, Rook, Bishop, Silver, Knight, Lance, Pawn および成駒）
+- `Piece` - 駒（色と種類の組み合わせ）
+- `Move` - 手（通常手、打ち手、CSA形式対応）
+- `Hand` - 持ち駒
+- `Board` - 盤面
+- `Game` - ゲーム状態
+
+### 評価関数クラス
+- `SimpleEvaluator` - シンプルな評価関数
+- `NeuralEvaluator` - ニューラルネットワーク評価関数
+
+### 探索クラス
+- `SearchEngine` - 探索エンジン
+- `AlphaBetaSearchStrategy` - アルファベータ法
+- `MinMaxSearchStrategy` - ミニマックス法
+- `EvaluationResult` - 評価結果
+
+## テスト構造
+
+### ユニットテスト
+`tests/`ディレクトリに各モジュールのテストファイルが存在：
+- `test_address.rs`
+- `test_bitboard.rs`
+- `test_board.rs`
+- `test_board_pca.rs`
+- `test_color.rs`
+- `test_common.rs`
+- `test_direction.rs`
+- `test_game.rs`
+- `test_hand.rs`
+- `test_moves.rs`
+- `test_neural_evaluator.rs`
+- `test_nn_model.rs`
+- `test_pca.rs`
+- `test_piece.rs`
+- `test_random.rs`
+- `test_search.rs`
+
+### ベンチマーク
+- `benches/shogi_benchmark.rs` - パフォーマンスベンチマーク
+
+## ドキュメント
+
+- Sphinxを使用したドキュメント生成
+- `docs/source/`にドキュメントソース
+- オンラインドキュメント: https://applyuser160.github.io/rustshogi/
+
+## パフォーマンス特性
+
+- LRUキャッシュを使用した手生成の最適化（`MOVE_CACHE`、サイズ70,000）
+- ビットボードによる高速な盤面操作
+- 並列処理サポート（rayon）
+- メモリ効率的なデータ構造
+
+## 開発環境
+
+- Rust 2021 Edition
+- Python 3.8+
+- maturin（Pythonパッケージビルド）
+- Windows/Linux/macOS対応
+
+## 関連プロジェクト
+
+- `rustshogi-example/` - 使用例とトレーニングスクリプトを含むサブプロジェクト
