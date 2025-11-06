@@ -2,130 +2,130 @@
 alwaysApply: true
 ---
 
-# RustShogi プロジェクトコンテキスト
+# RustShogi Project Context
 
-## プロジェクト概要
+## Project Overview
 
-RustShogiは、Rustで実装された高性能な将棋ライブラリです。Pythonバインディングを提供し、Pythonアプリケーションから使用できます。
+RustShogi is a high-performance Shogi library implemented in Rust. It provides Python bindings and can be used from Python applications.
 
-- **言語**: Rust 2021 Edition
-- **バージョン**: 0.1.0
-- **ライセンス**: MIT License
-- **Pythonサポート**: Python 3.8+
-- **ビルドシステム**: Cargo (maturinを使用してPythonパッケージ化)
+- **Language**: Rust 2021 Edition
+- **Version**: 0.1.0
+- **License**: MIT License
+- **Python Support**: Python 3.8+
+- **Build System**: Cargo (using maturin for Python packaging)
 
-## 主要機能
+## Key Features
 
-### コア機能
-- ⚡ 高性能なRust実装
-- 🐍 Pythonバインディングサポート
-- 💾 メモリ効率的なデータ構造
-- ✅ 完全な将棋ルール実装
+### Core Features
+- ⚡ High-performance Rust implementation
+- 🐍 Python bindings support
+- 💾 Memory-efficient data structures
+- ✅ Complete Shogi rule implementation
 
-### パフォーマンス最適化
-- ビットボードを使用した効率的な盤面表現
-- メモリ効率的なデータ構造（例：u16 Move表現）
-- SIMD命令の活用
-- ゼロコスト抽象化
+### Performance Optimizations
+- Efficient board representation using bitboards
+- Memory-efficient data structures (e.g., u16 Move representation)
+- Utilization of SIMD instructions
+- Zero-cost abstractions
 
-## プロジェクト構造
+## Project Structure
 
-### 主要モジュール
+### Main Modules
 
-#### 基本データ型
-- `address.rs` - 座標表現（Addressクラス）
-- `color.rs` - プレイヤー色（ColorType列挙型：Black/White）
-- `piece.rs` - 駒の種類と表現（PieceType列挙型、Pieceクラス）
-- `moves.rs` - 手の表現（Moveクラス）
-- `hand.rs` - 持ち駒管理（Handクラス）
+#### Basic Data Types
+- `address.rs` - Coordinate representation (Address class)
+- `color.rs` - Player color (ColorType enum: Black/White)
+- `piece.rs` - Piece types and representation (PieceType enum, Piece class)
+- `moves.rs` - Move representation (Move class)
+- `hand.rs` - Hand piece management (Hand class)
 
-#### 盤面とゲーム管理
-- `board.rs` - 盤面表現と操作（Boardクラス）
-  - ビットボードを使用した盤面表現
-  - 合法手生成（`search_moves`）
-  - 手の実行（`execute_move`）
-  - 駒の配置（`deploy`）
-  - SFEN形式のサポート
-- `game.rs` - ゲーム状態管理（Gameクラス）
-  - ゲーム進行管理
-  - 勝敗判定（`is_finished`）
-  - ランダムプレイ（`random_play`）
+#### Board and Game Management
+- `board.rs` - Board representation and operations (Board class)
+  - Board representation using bitboards
+  - Legal move generation (`search_moves`)
+  - Move execution (`execute_move`)
+  - Piece deployment (`deploy`)
+  - SFEN format support
+- `game.rs` - Game state management (Game class)
+  - Game progression management
+  - Win/loss determination (`is_finished`)
+  - Random play (`random_play`)
 
-#### 評価関数
-- `evaluator/mod.rs` - 評価関数モジュール
-  - `abst.rs` - 評価関数トレイト定義
-  - `simple.rs` - SimpleEvaluator（シンプルな評価関数）
-  - `neural.rs` - NeuralEvaluator（ニューラルネットワーク評価関数）
-  - `database.rs` - データベース評価関数
+#### Evaluation Functions
+- `evaluator/mod.rs` - Evaluation function module
+  - `abst.rs` - Evaluator trait definition
+  - `simple.rs` - SimpleEvaluator (simple evaluation function)
+  - `neural.rs` - NeuralEvaluator (neural network evaluation function)
+  - `database.rs` - Database evaluation function
 
-#### 探索アルゴリズム
-- `search/mod.rs` - 探索モジュール
-  - `engine.rs` - SearchEngine（探索エンジン）
-  - `search_strategy.rs` - 探索戦略トレイト
-  - `alphabeta.rs` - AlphaBetaSearchStrategy（アルファベータ法）
-  - `minmax.rs` - MinMaxSearchStrategy（ミニマックス法）
+#### Search Algorithms
+- `search/mod.rs` - Search module
+  - `engine.rs` - SearchEngine (search engine)
+  - `search_strategy.rs` - Search strategy trait
+  - `alphabeta.rs` - AlphaBetaSearchStrategy (alpha-beta pruning)
+  - `minmax.rs` - MinMaxSearchStrategy (minimax algorithm)
 
-#### その他のユーティリティ
-- `bitboard.rs` - ビットボード実装
-- `direction.rs` - 方向ベクトル
-- `move_pattern.rs` - 手のパターン
-- `random.rs` - 乱数生成
-- `nn_model.rs` - ニューラルネットワークモデル
-- `pca.rs` - PCA圧縮
-- `mctsresult.rs` - MCTS結果
+#### Other Utilities
+- `bitboard.rs` - Bitboard implementation
+- `direction.rs` - Direction vectors
+- `move_pattern.rs` - Move patterns
+- `random.rs` - Random number generation
+- `nn_model.rs` - Neural network model
+- `pca.rs` - PCA compression
+- `mctsresult.rs` - MCTS result
 
-## 主要な依存関係
+## Key Dependencies
 
-### コア依存関係
-- `pyo3` (0.25.0) - Pythonバインディング
-- `rand` (0.8.5) - 乱数生成
-- `strum` (0.27.2) - 列挙型ユーティリティ
-- `rayon` (1.8.1) - 並列処理
-- `num_cpus` (1.16.0) - CPU数取得
-- `lru` (0.12.5) - LRUキャッシュ
-- `once_cell` (1.19.0) - 遅延初期化
+### Core Dependencies
+- `pyo3` (0.25.0) - Python bindings
+- `rand` (0.8.5) - Random number generation
+- `strum` (0.27.2) - Enumeration utilities
+- `rayon` (1.8.1) - Parallel processing
+- `num_cpus` (1.16.0) - CPU count retrieval
+- `lru` (0.12.5) - LRU cache
+- `once_cell` (1.19.0) - Lazy initialization
 
-### 機械学習・数値計算
-- `ndarray` (0.15) - 多次元配列
-- `nalgebra` (0.33) - 線形代数
-- `burn` (0.18.0) - 深層学習フレームワーク
+### Machine Learning & Numerical Computing
+- `ndarray` (0.15) - Multi-dimensional arrays
+- `nalgebra` (0.33) - Linear algebra
+- `burn` (0.18.0) - Deep learning framework
 
-### データベース
-- `rusqlite` (0.37) - SQLiteバインディング
-- `tokio-postgres` (0.7) - PostgreSQL非同期クライアント
-- `tokio` (1.0) - 非同期ランタイム
-- `chrono` (0.4) - 日時処理
+### Database
+- `rusqlite` (0.37) - SQLite bindings
+- `tokio-postgres` (0.7) - PostgreSQL async client
+- `tokio` (1.0) - Async runtime
+- `chrono` (0.4) - Date/time handling
 
-### シリアライゼーション
-- `serde` (1.0) - シリアライゼーション
-- `serde_json` (1.0) - JSONサポート
+### Serialization
+- `serde` (1.0) - Serialization
+- `serde_json` (1.0) - JSON support
 
 ## Python API
 
-### 主要クラス
-- `Address` - 座標表現
-- `ColorType` - プレイヤー色（Black/White/None）
-- `PieceType` - 駒の種類（King, Gold, Rook, Bishop, Silver, Knight, Lance, Pawn および成駒）
-- `Piece` - 駒（色と種類の組み合わせ）
-- `Move` - 手（通常手、打ち手、CSA形式対応）
-- `Hand` - 持ち駒
-- `Board` - 盤面
-- `Game` - ゲーム状態
+### Main Classes
+- `Address` - Coordinate representation
+- `ColorType` - Player color (Black/White/None)
+- `PieceType` - Piece types (King, Gold, Rook, Bishop, Silver, Knight, Lance, Pawn and promoted pieces)
+- `Piece` - Piece (combination of color and type)
+- `Move` - Move (normal moves, drops, CSA format support)
+- `Hand` - Hand pieces
+- `Board` - Board state
+- `Game` - Game state
 
-### 評価関数クラス
-- `SimpleEvaluator` - シンプルな評価関数
-- `NeuralEvaluator` - ニューラルネットワーク評価関数
+### Evaluation Function Classes
+- `SimpleEvaluator` - Simple evaluation function
+- `NeuralEvaluator` - Neural network evaluation function
 
-### 探索クラス
-- `SearchEngine` - 探索エンジン
-- `AlphaBetaSearchStrategy` - アルファベータ法
-- `MinMaxSearchStrategy` - ミニマックス法
-- `EvaluationResult` - 評価結果
+### Search Classes
+- `SearchEngine` - Search engine
+- `AlphaBetaSearchStrategy` - Alpha-beta pruning
+- `MinMaxSearchStrategy` - Minimax algorithm
+- `EvaluationResult` - Evaluation result
 
-## テスト構造
+## Test Structure
 
-### ユニットテスト
-`tests/`ディレクトリに各モジュールのテストファイルが存在：
+### Unit Tests
+Test files for each module exist in the `tests/` directory:
 - `test_address.rs`
 - `test_bitboard.rs`
 - `test_board.rs`
@@ -143,29 +143,291 @@ RustShogiは、Rustで実装された高性能な将棋ライブラリです。P
 - `test_random.rs`
 - `test_search.rs`
 
-### ベンチマーク
-- `benches/shogi_benchmark.rs` - パフォーマンスベンチマーク
+### Benchmarks
+- `benches/shogi_benchmark.rs` - Performance benchmarks
 
-## ドキュメント
+## Documentation
 
-- Sphinxを使用したドキュメント生成
-- `docs/source/`にドキュメントソース
-- オンラインドキュメント: https://applyuser160.github.io/rustshogi/
+- Documentation generation using Sphinx
+- Documentation source in `docs/source/`
+- Online documentation: https://applyuser160.github.io/rustshogi/
 
-## パフォーマンス特性
+## Performance Characteristics
 
-- LRUキャッシュを使用した手生成の最適化（`MOVE_CACHE`、サイズ70,000）
-- ビットボードによる高速な盤面操作
-- 並列処理サポート（rayon）
-- メモリ効率的なデータ構造
+- Move generation optimization using LRU cache (`MOVE_CACHE`, size 70,000)
+- Fast board operations using bitboards
+- Parallel processing support (rayon)
+- Memory-efficient data structures
 
-## 開発環境
+## Development Environment
 
 - Rust 2021 Edition
 - Python 3.8+
-- maturin（Pythonパッケージビルド）
-- Windows/Linux/macOS対応
+- maturin (Python package build)
+- Windows/Linux/macOS support
 
-## 関連プロジェクト
+## Related Projects
 
-- `rustshogi-example/` - 使用例とトレーニングスクリプトを含むサブプロジェクト
+- `rustshogi-example/` - Subproject containing usage examples and training scripts
+
+## Coding Conventions
+
+### Naming Conventions
+
+#### Rust Code
+- **Structs, Enums, Traits**: PascalCase
+  - Examples: `Board`, `ColorType`, `PieceType`, `NeuralEvaluator`
+- **Functions, Methods, Variables**: snake_case
+  - Examples: `new()`, `execute_move()`, `search_moves()`, `move_number`
+- **Constants**: UPPER_SNAKE_CASE
+  - Examples: `CACHE_SIZE`, `MOVE_CACHE`, `BIT_OF_FRAME`, `PIECE_TYPE_NUMBER`
+- **Type Aliases**: PascalCase
+  - Example: `EvaluatorWrapper`
+- **Private Methods**: snake_case (no leading `_`)
+  - Examples: `drop()`, `move_standard()`, `move_to_hand()`, `is_a_has_specific_piece()`
+
+#### Python Bindings
+- Python API follows Rust naming conventions (PascalCase classes, snake_case methods)
+- Use `#[pyo3(name = "...")]` to change Python method names
+
+### Module Structure and Imports
+
+#### Module Definition
+- Use `#[path = "..."]` to define modules in `lib.rs`
+- Submodules are managed in `mod.rs`
+
+#### Import Order
+1. Relative imports from `crate::` or `super::`
+2. External crates (non-standard library)
+3. Standard library
+4. `pyo3::prelude::*` (when Python bindings are needed)
+
+Example:
+```rust
+use super::address::Address;
+use super::color::ColorType;
+use super::piece::PieceType;
+
+use pyo3::prelude::*;
+use std::sync::Mutex;
+```
+
+#### Relative Imports
+- Same level: `super::`
+- Parent module: `super::super::`
+- Root crate: `crate::`
+
+### Documentation
+
+#### Documentation Comments
+- Use `///` documentation comments for public APIs
+- Use `//!` at module level
+- Describe function purpose, parameters, return values, and error conditions
+
+Example:
+```rust
+/// Neural network evaluation function system
+#[pyclass]
+pub struct NeuralEvaluator {
+    // ...
+}
+
+/// Create a new evaluation function system
+pub fn new(db_type: Option<DatabaseType>, model_path: Option<String>) -> Self {
+    // ...
+}
+```
+
+### Python Bindings
+
+#### Class Definition
+- Define Python classes with `#[pyclass]`
+- Add necessary derive macros: `#[derive(Clone, PartialEq, Eq, Debug, Hash)]`
+- Provide property access with `#[pyo3(get, set)]`
+
+Example:
+```rust
+#[pyclass]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct Board {
+    #[pyo3(get, set)]
+    pub has_piece: BitBoard,
+    // ...
+}
+```
+
+#### Method Definition
+- Define Python methods in `#[pymethods]` block
+- Define constructors with `#[new]`
+- Specify default arguments with `#[pyo3(signature = (...))]`
+
+Example:
+```rust
+#[pymethods]
+impl SearchEngine {
+    #[new]
+    #[pyo3(signature = (algorithm="minmax".to_string(), max_nodes=1000000, evaluator=None))]
+    pub fn new_for_python(...) -> PyResult<Self> {
+        // ...
+    }
+}
+```
+
+### Error Handling
+
+#### Error Types
+- Internal errors: `Result<T, Box<dyn std::error::Error + Send + Sync>>`
+- Python bindings: `PyResult<T>` or `Result<T, PyErr>`
+- Error messages should be clear and include context information
+
+Example:
+```rust
+pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let db_type = self
+        .db_type
+        .as_ref()
+        .cloned()
+        .ok_or("Database type is not set")?;
+    Ok(TrainingDatabase::new(db_type).init_database()?)
+}
+```
+
+### Performance Optimization
+
+#### Caching
+- Use `Lazy<Mutex<...>>` for global caches
+- Use `lru::LruCache` for LRU caches
+- Define cache sizes as constants (e.g., `const CACHE_SIZE: usize = 70000;`)
+
+Example:
+```rust
+const CACHE_SIZE: usize = 70000;
+
+static MOVE_CACHE: Lazy<Mutex<LruCache<(Board, ColorType), Vec<Move>>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(CACHE_SIZE).unwrap())));
+```
+
+#### Parallel Processing
+- Use `rayon` for CPU-intensive operations
+- Implement parallel iteration with `par_iter()`
+- Get thread count with `num_cpus::get()`
+
+#### Memory Efficiency
+- Use small data types (e.g., `u16` for Move representation)
+- Reduce memory usage with bit operations
+- Avoid unnecessary clones
+
+### Code Formatting and Linting
+
+#### Auto Formatting
+- Format code with `cargo fmt` (automatically executed via pre-commit hook)
+- Follow standard Rust formatting rules
+
+#### Linting
+- Lint check with `cargo clippy` (automatically executed via pre-commit hook)
+- Allow `unused-imports` warnings (`--allow-dirty`, `--allow-staged`)
+- Fix warnings whenever possible
+
+#### Pre-commit Hooks
+The following pre-commit hooks are configured in the project:
+- `cargo-check`: Compilation check
+- `fmt`: Code formatting
+- `clippy`: Lint check
+- `trailing-whitespace`: Remove trailing whitespace
+- `end-of-file-fixer`: Fix end-of-file newlines
+
+### Type Safety
+
+#### Type Conversion
+- Use explicit type conversion (`as`, `From`/`Into` traits)
+- Use `TryFrom`/`TryInto` when range checking is needed
+
+#### Enumerations
+- Specify memory layout with `#[repr(usize)]`
+- Implement enumeration iteration with `strum` macros
+- Provide conversion methods like `from_usize()` and `to_string()`
+
+### Testing
+
+#### Unit Tests
+- Create test files for each module in the `tests/` directory
+- Test file naming: `test_<module_name>.rs`
+- Test function naming: `test_<functionality>()`
+
+#### Benchmarks
+- Create benchmark files in the `benches/` directory
+- Use the `criterion` crate
+
+### Comments
+
+#### Inline Comments
+- Add explanatory comments for complex logic
+- Explain bit operations and optimization intentions
+
+Example:
+```rust
+// Bit layout:
+// bit 15: drop (1 bit)
+// bit 14: promote (1 bit)
+// bits 13-7: to (7 bits)
+// bits 6-0: from/piece (7 bits)
+self.value = (drop << 15) | (pro << 14) | (to << 7) | from;
+```
+
+#### TODO/FIXME Comments
+- Use `// TODO:` or `// FIXME:` for temporary implementations or improvements
+- Address them as soon as possible
+
+### Code Organization
+
+#### Struct Implementation
+- Place `impl` blocks immediately after struct definitions
+- Provide `Default` trait implementation when possible
+- Place private methods first, public methods last
+
+#### Function Order
+1. Constructors (`new()`, `from_*()`)
+2. Private helper methods
+3. Public methods (alphabetical or logical order)
+
+### Constants and Magic Numbers
+
+#### Constant Definition
+- Define magic numbers as constants
+- Constant names should clearly express meaning
+- Define at module level (use `pub` when needed)
+
+Example:
+```rust
+pub const PROMOTE: u8 = 8;
+pub const PIECE_TYPE_NUMBER: u8 = 15;
+const CACHE_SIZE: usize = 70000;
+```
+
+### Pattern Matching
+
+#### match Expressions
+- Use `match` expressions whenever possible (clearer than `if-else`)
+- Cover all cases (handle default case with `_`)
+- Add conditions with guard clauses
+
+Example:
+```rust
+match n {
+    0 => PieceType::None,
+    1 => PieceType::King,
+    // ...
+    _ => PieceType::None,
+}
+```
+
+### Ownership and Borrowing
+
+#### Borrowing Rules
+- Use references (`&`) whenever possible to avoid moving ownership
+- Use mutable references (`&mut`) when modification is needed
+- Clone only when necessary
+
+#### Lifetimes
+- Use symbols like `'a` when explicit lifetimes are needed
+- Leverage lifetime elision rules whenever possible

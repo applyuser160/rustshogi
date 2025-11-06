@@ -69,3 +69,51 @@ src/rustshogi/
 - Memory-efficient move encoding
 - Parallel search capabilities
 - SIMD optimizations where applicable
+
+## Coding Guidelines
+
+### Naming (Rust)
+- Types/Traits: PascalCase (e.g., `Board`, `ColorType`, `NeuralEvaluator`)
+- Functions/Methods/Vars: snake_case (e.g., `execute_move`, `search_moves`)
+- Constants: UPPER_SNAKE_CASE (e.g., `MOVE_CACHE`, `CACHE_SIZE`)
+- Type aliases: PascalCase
+
+### Python Bindings
+- Use `#[pyclass]` for classes and `#[pymethods]` for methods
+- Expose properties with `#[pyo3(get, set)]`
+- Adjust Python names via `#[pyo3(name = "...")]` when needed
+
+### Module/Imports Order
+1. Relative (`crate::`, `super::`)
+2. External crates
+3. Standard library
+4. `pyo3::prelude::*` (when exposing to Python)
+
+### Documentation
+- Public API uses `///`, module-level uses `//!`
+- Describe purpose, params, returns, and errors concisely
+
+### Error Handling
+- Internal: `Result<T, Box<dyn std::error::Error + Send + Sync>>`
+- Python: `PyResult<T>` / `Result<T, PyErr>`
+- Provide clear, contextual messages
+
+### Performance
+- Use global/LRU caches (e.g., `const CACHE_SIZE: usize = 70000;`, `MOVE_CACHE`)
+- Parallelize with rayon (`par_iter`), use `num_cpus::get()` for threads
+- Optimize memory (`u16` move encoding), minimize clones, prefer bit ops
+
+### Formatting & Linting
+- Run `cargo fmt` and `cargo clippy`; pre-commit hooks include compile/fmt/clippy/trailing-whitespace/EOF-fixer
+
+### Type Safety
+- Prefer explicit conversions (`From`/`Into`/`TryFrom`); enums may use `#[repr(usize)]` and `strum`
+
+### Tests & Benchmarks
+- Unit tests under `tests/` as `test_<module>.rs`
+- Benchmarks under `benches/` with `criterion`
+
+### Comments & Organization
+- Add inline comments for complex logic/bit ops
+- Replace magic numbers with constants (e.g., `PROMOTE`, `PIECE_TYPE_NUMBER`)
+- Prefer exhaustive `match`; use references to avoid unnecessary moves/clones

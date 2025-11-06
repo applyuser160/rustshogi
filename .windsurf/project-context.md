@@ -1,76 +1,126 @@
-# RustShogi プロジェクトコンテキスト
+# RustShogi Project Context
 
-## プロジェクト概要
-RustShogiはRustで実装された高性能な将棋ライブラリです。Pythonバインディングも提供しており、Pythonからも利用可能です。
+## Project Overview
+RustShogi is a high-performance Shogi library implemented in Rust. It also provides Python bindings and can be used from Python.
 
-## 技術スタック
-- **メイン言語**: Rust (Edition 2021)
-- **バインディング**: Python (PyO3使用)
-- **ビルドシステム**: Cargo (Rust), Maturin (Python)
+## Technology Stack
+- **Main Language**: Rust (Edition 2021)
+- **Bindings**: Python (using PyO3)
+- **Build System**: Cargo (Rust), Maturin (Python)
 
-## 主要機能
-- ⚡ 高性能なRust実装
-- 🐍 Pythonバインディング対応
-- 💾 メモリ効率の良いデータ構造
-- ✅ 完全な将棋ルール実装
-- 🧠 ニューラルネットワーク評価機能
-- 🔍 アルゴリズム探索（Minimax, AlphaBetaなど）
+## Key Features
+- ⚡ High-performance Rust implementation
+- 🐍 Python bindings support
+- 💾 Memory-efficient data structures
+- ✅ Complete Shogi rule implementation
+- 🧠 Neural network evaluation functionality
+- 🔍 Search algorithms (Minimax, AlphaBeta, etc.)
 
-## パフォーマンス最適化
-- ビットボードを使用した効率的な盤面表現
-- メモリ効率の良いデータ構造（u16 Move表現など）
-- SIMD命令の活用
-- ゼロコスト抽象化
+## Performance Optimizations
+- Efficient board representation using bitboards
+- Memory-efficient data structures (e.g., u16 Move representation)
+- Utilization of SIMD instructions
+- Zero-cost abstractions
 
-## プロジェクト構成
+## Project Structure
 ```
 rustshogi/
 ├── src/
 │   ├── rustshogi/
-│   │   ├── address.rs      # 座標操作
-│   │   ├── bitboard.rs     # ビットボード実装
-│   │   ├── board.rs        # 盤面管理
-│   │   ├── color.rs        # 色定義
-│   │   ├── piece.rs        # 駒の定義と操作
-│   │   ├── moves.rs        # 指手の表現と操作
-│   │   ├── game.rs         # ゲーム進行管理
-│   │   ├── hand.rs         # 持ち駒管理
-│   │   ├── search/         # 探索アルゴリズム
-│   │   │   ├── engine.rs   # 探索エンジン
-│   │   │   ├── alphabeta.rs # AlphaBeta探索
-│   │   │   └── minmax.rs   # Minimax探索
-│   │   └── evaluator/      # 評価関数
-│   │       ├── neural.rs   # ニューラルネット評価
-│   │       ├── simple.rs   # シンプル評価
-│   │       └── database.rs # データベース評価
-│   └── lib.rs              # Pythonモジュール定義
-├── tests/                  # テストコード
-├── benches/                # ベンチマーク
-├── docs/                   # ドキュメント
-├── Cargo.toml             # Rust依存関係
-└── pyproject.toml         # Python設定
+│   │   ├── address.rs      # Coordinate operations
+│   │   ├── bitboard.rs     # Bitboard implementation
+│   │   ├── board.rs        # Board management
+│   │   ├── color.rs        # Color definitions
+│   │   ├── piece.rs        # Piece definitions and operations
+│   │   ├── moves.rs        # Move representation and operations
+│   │   ├── game.rs         # Game progression management
+│   │   ├── hand.rs         # Hand piece management
+│   │   ├── search/         # Search algorithms
+│   │   │   ├── engine.rs   # Search engine
+│   │   │   ├── alphabeta.rs # AlphaBeta search
+│   │   │   └── minmax.rs   # Minimax search
+│   │   └── evaluator/      # Evaluation functions
+│   │       ├── neural.rs   # Neural network evaluation
+│   │       ├── simple.rs   # Simple evaluation
+│   │       └── database.rs # Database evaluation
+│   └── lib.rs              # Python module definition
+├── tests/                  # Test code
+├── benches/                # Benchmarks
+├── docs/                   # Documentation
+├── Cargo.toml             # Rust dependencies
+└── pyproject.toml         # Python configuration
 ```
 
-## 主要依存関係
-- **rand**: 乱数生成
-- **pyo3**: Pythonバインディング
-- **rayon**: 並列処理
-- **burn**: 機械学習フレームワーク
-- **ndarray/nalgebra**: 数値計算
-- **serde**: シリアライズ
-- **rusqlite/tokio-postgres**: データベース接続
+## Key Dependencies
+- **rand**: Random number generation
+- **pyo3**: Python bindings
+- **rayon**: Parallel processing
+- **burn**: Machine learning framework
+- **ndarray/nalgebra**: Numerical computing
+- **serde**: Serialization
+- **rusqlite/tokio-postgres**: Database connections
 
-## 開発環境
+## Development Environment
 - Python 3.8+
 - Rust 2021 Edition
-- Maturin (Pythonビルド)
-- Sphinx (ドキュメント生成)
+- Maturin (Python build)
+- Sphinx (Documentation generation)
 
-## ライセンス
+## License
 MIT License
 
-## ドキュメント
-詳細なドキュメント: https://applyuser160.github.io/rustshogi/
+## Documentation
+Detailed documentation: https://applyuser160.github.io/rustshogi/
 
 ## PyPI
-パッケージ名: `rustshogi`
+Package name: `rustshogi`
+
+## Coding Conventions
+
+### Naming Conventions (Rust)
+- Structs, Enums, Traits: PascalCase (e.g., `Board`, `ColorType`, `NeuralEvaluator`)
+- Functions, Methods, Variables: snake_case (e.g., `execute_move`, `search_moves`)
+- Constants: UPPER_SNAKE_CASE (e.g., `MOVE_CACHE`, `CACHE_SIZE`)
+- Type Aliases: PascalCase
+
+### Python Bindings
+- Classes exposed with `#[pyclass]`, methods with `#[pymethods]`
+- Use `#[pyo3(name = "...")]` to adjust Python public names
+- Provide property access with `#[pyo3(get, set)]`
+
+### Module Structure and Import Order
+1. Relative imports from `crate::`/`super::`
+2. External crates
+3. Standard library
+4. `pyo3::prelude::*`
+
+### Documentation Comments
+- Use `///` for public APIs, `//!` for modules
+- Briefly describe purpose, parameters, return values, and errors
+
+### Error Handling
+- Internal: `Result<T, Box<dyn std::error::Error + Send + Sync>>`
+- Python: `PyResult<T>` / `Result<T, PyErr>`
+- Provide context-aware error messages
+
+### Performance Optimization
+- Use global/LRU caches (e.g., `const CACHE_SIZE: usize = 70000;`, `MOVE_CACHE`)
+- Parallelization: rayon (`par_iter`), thread count via `num_cpus::get()`
+- Memory efficiency: `u16` for Move representation, avoid unnecessary clones, leverage bit operations
+
+### Formatting and Linting
+- Auto-format with `cargo fmt`, lint with `cargo clippy`
+- Pre-commit: compile check / fmt / clippy / trailing-whitespace / end-of-file-fixer
+
+### Type Safety
+- Leverage explicit conversions (`From`/`Into`/`TryFrom`)
+- Enumerations provide utilities with `#[repr(usize)]` and `strum`
+
+### Tests/Benchmarks
+- Unit tests in `tests/test_<module>.rs`
+- Benchmarks in `benches/` using `criterion`
+
+### Comments and Code Organization
+- Inline comments for complex logic and bit operations
+- Convert magic numbers to constants (e.g., `PROMOTE`, `PIECE_TYPE_NUMBER`)
+- Use `match` for exhaustive branching, prefer references over ownership/borrowing
