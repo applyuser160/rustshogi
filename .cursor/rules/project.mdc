@@ -1,0 +1,433 @@
+---
+alwaysApply: true
+---
+
+# RustShogi Project Context
+
+## Project Overview
+
+RustShogi is a high-performance Shogi library implemented in Rust. It provides Python bindings and can be used from Python applications.
+
+- **Language**: Rust 2021 Edition
+- **Version**: 0.1.0
+- **License**: MIT License
+- **Python Support**: Python 3.8+
+- **Build System**: Cargo (using maturin for Python packaging)
+
+## Key Features
+
+### Core Features
+- ⚡ High-performance Rust implementation
+- 🐍 Python bindings support
+- 💾 Memory-efficient data structures
+- ✅ Complete Shogi rule implementation
+
+### Performance Optimizations
+- Efficient board representation using bitboards
+- Memory-efficient data structures (e.g., u16 Move representation)
+- Utilization of SIMD instructions
+- Zero-cost abstractions
+
+## Project Structure
+
+### Main Modules
+
+#### Basic Data Types
+- `address.rs` - Coordinate representation (Address class)
+- `color.rs` - Player color (ColorType enum: Black/White)
+- `piece.rs` - Piece types and representation (PieceType enum, Piece class)
+- `moves.rs` - Move representation (Move class)
+- `hand.rs` - Hand piece management (Hand class)
+
+#### Board and Game Management
+- `board.rs` - Board representation and operations (Board class)
+  - Board representation using bitboards
+  - Legal move generation (`search_moves`)
+  - Move execution (`execute_move`)
+  - Piece deployment (`deploy`)
+  - SFEN format support
+- `game.rs` - Game state management (Game class)
+  - Game progression management
+  - Win/loss determination (`is_finished`)
+  - Random play (`random_play`)
+
+#### Evaluation Functions
+- `evaluator/mod.rs` - Evaluation function module
+  - `abst.rs` - Evaluator trait definition
+  - `simple.rs` - SimpleEvaluator (simple evaluation function)
+  - `neural.rs` - NeuralEvaluator (neural network evaluation function)
+  - `database.rs` - Database evaluation function
+
+#### Search Algorithms
+- `search/mod.rs` - Search module
+  - `engine.rs` - SearchEngine (search engine)
+  - `search_strategy.rs` - Search strategy trait
+  - `alphabeta.rs` - AlphaBetaSearchStrategy (alpha-beta pruning)
+  - `minmax.rs` - MinMaxSearchStrategy (minimax algorithm)
+
+#### Other Utilities
+- `bitboard.rs` - Bitboard implementation
+- `direction.rs` - Direction vectors
+- `move_pattern.rs` - Move patterns
+- `random.rs` - Random number generation
+- `nn_model.rs` - Neural network model
+- `pca.rs` - PCA compression
+- `mctsresult.rs` - MCTS result
+
+## Key Dependencies
+
+### Core Dependencies
+- `pyo3` (0.25.0) - Python bindings
+- `rand` (0.8.5) - Random number generation
+- `strum` (0.27.2) - Enumeration utilities
+- `rayon` (1.8.1) - Parallel processing
+- `num_cpus` (1.16.0) - CPU count retrieval
+- `lru` (0.12.5) - LRU cache
+- `once_cell` (1.19.0) - Lazy initialization
+
+### Machine Learning & Numerical Computing
+- `ndarray` (0.15) - Multi-dimensional arrays
+- `nalgebra` (0.33) - Linear algebra
+- `burn` (0.18.0) - Deep learning framework
+
+### Database
+- `rusqlite` (0.37) - SQLite bindings
+- `tokio-postgres` (0.7) - PostgreSQL async client
+- `tokio` (1.0) - Async runtime
+- `chrono` (0.4) - Date/time handling
+
+### Serialization
+- `serde` (1.0) - Serialization
+- `serde_json` (1.0) - JSON support
+
+## Python API
+
+### Main Classes
+- `Address` - Coordinate representation
+- `ColorType` - Player color (Black/White/None)
+- `PieceType` - Piece types (King, Gold, Rook, Bishop, Silver, Knight, Lance, Pawn and promoted pieces)
+- `Piece` - Piece (combination of color and type)
+- `Move` - Move (normal moves, drops, CSA format support)
+- `Hand` - Hand pieces
+- `Board` - Board state
+- `Game` - Game state
+
+### Evaluation Function Classes
+- `SimpleEvaluator` - Simple evaluation function
+- `NeuralEvaluator` - Neural network evaluation function
+
+### Search Classes
+- `SearchEngine` - Search engine
+- `AlphaBetaSearchStrategy` - Alpha-beta pruning
+- `MinMaxSearchStrategy` - Minimax algorithm
+- `EvaluationResult` - Evaluation result
+
+## Test Structure
+
+### Unit Tests
+Test files for each module exist in the `tests/` directory:
+- `test_address.rs`
+- `test_bitboard.rs`
+- `test_board.rs`
+- `test_board_pca.rs`
+- `test_color.rs`
+- `test_common.rs`
+- `test_direction.rs`
+- `test_game.rs`
+- `test_hand.rs`
+- `test_moves.rs`
+- `test_neural_evaluator.rs`
+- `test_nn_model.rs`
+- `test_pca.rs`
+- `test_piece.rs`
+- `test_random.rs`
+- `test_search.rs`
+
+### Benchmarks
+- `benches/shogi_benchmark.rs` - Performance benchmarks
+
+## Documentation
+
+- Documentation generation using Sphinx
+- Documentation source in `docs/source/`
+- Online documentation: https://applyuser160.github.io/rustshogi/
+
+## Performance Characteristics
+
+- Move generation optimization using LRU cache (`MOVE_CACHE`, size 70,000)
+- Fast board operations using bitboards
+- Parallel processing support (rayon)
+- Memory-efficient data structures
+
+## Development Environment
+
+- Rust 2021 Edition
+- Python 3.8+
+- maturin (Python package build)
+- Windows/Linux/macOS support
+
+## Related Projects
+
+- `rustshogi-example/` - Subproject containing usage examples and training scripts
+
+## Coding Conventions
+
+### Naming Conventions
+
+#### Rust Code
+- **Structs, Enums, Traits**: PascalCase
+  - Examples: `Board`, `ColorType`, `PieceType`, `NeuralEvaluator`
+- **Functions, Methods, Variables**: snake_case
+  - Examples: `new()`, `execute_move()`, `search_moves()`, `move_number`
+- **Constants**: UPPER_SNAKE_CASE
+  - Examples: `CACHE_SIZE`, `MOVE_CACHE`, `BIT_OF_FRAME`, `PIECE_TYPE_NUMBER`
+- **Type Aliases**: PascalCase
+  - Example: `EvaluatorWrapper`
+- **Private Methods**: snake_case (no leading `_`)
+  - Examples: `drop()`, `move_standard()`, `move_to_hand()`, `is_a_has_specific_piece()`
+
+#### Python Bindings
+- Python API follows Rust naming conventions (PascalCase classes, snake_case methods)
+- Use `#[pyo3(name = "...")]` to change Python method names
+
+### Module Structure and Imports
+
+#### Module Definition
+- Use `#[path = "..."]` to define modules in `lib.rs`
+- Submodules are managed in `mod.rs`
+
+#### Import Order
+1. Relative imports from `crate::` or `super::`
+2. External crates (non-standard library)
+3. Standard library
+4. `pyo3::prelude::*` (when Python bindings are needed)
+
+Example:
+```rust
+use super::address::Address;
+use super::color::ColorType;
+use super::piece::PieceType;
+
+use pyo3::prelude::*;
+use std::sync::Mutex;
+```
+
+#### Relative Imports
+- Same level: `super::`
+- Parent module: `super::super::`
+- Root crate: `crate::`
+
+### Documentation
+
+#### Documentation Comments
+- Use `///` documentation comments for public APIs
+- Use `//!` at module level
+- Describe function purpose, parameters, return values, and error conditions
+
+Example:
+```rust
+/// Neural network evaluation function system
+#[pyclass]
+pub struct NeuralEvaluator {
+    // ...
+}
+
+/// Create a new evaluation function system
+pub fn new(db_type: Option<DatabaseType>, model_path: Option<String>) -> Self {
+    // ...
+}
+```
+
+### Python Bindings
+
+#### Class Definition
+- Define Python classes with `#[pyclass]`
+- Add necessary derive macros: `#[derive(Clone, PartialEq, Eq, Debug, Hash)]`
+- Provide property access with `#[pyo3(get, set)]`
+
+Example:
+```rust
+#[pyclass]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct Board {
+    #[pyo3(get, set)]
+    pub has_piece: BitBoard,
+    // ...
+}
+```
+
+#### Method Definition
+- Define Python methods in `#[pymethods]` block
+- Define constructors with `#[new]`
+- Specify default arguments with `#[pyo3(signature = (...))]`
+
+Example:
+```rust
+#[pymethods]
+impl SearchEngine {
+    #[new]
+    #[pyo3(signature = (algorithm="minmax".to_string(), max_nodes=1000000, evaluator=None))]
+    pub fn new_for_python(...) -> PyResult<Self> {
+        // ...
+    }
+}
+```
+
+### Error Handling
+
+#### Error Types
+- Internal errors: `Result<T, Box<dyn std::error::Error + Send + Sync>>`
+- Python bindings: `PyResult<T>` or `Result<T, PyErr>`
+- Error messages should be clear and include context information
+
+Example:
+```rust
+pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let db_type = self
+        .db_type
+        .as_ref()
+        .cloned()
+        .ok_or("Database type is not set")?;
+    Ok(TrainingDatabase::new(db_type).init_database()?)
+}
+```
+
+### Performance Optimization
+
+#### Caching
+- Use `Lazy<Mutex<...>>` for global caches
+- Use `lru::LruCache` for LRU caches
+- Define cache sizes as constants (e.g., `const CACHE_SIZE: usize = 70000;`)
+
+Example:
+```rust
+const CACHE_SIZE: usize = 70000;
+
+static MOVE_CACHE: Lazy<Mutex<LruCache<(Board, ColorType), Vec<Move>>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(CACHE_SIZE).unwrap())));
+```
+
+#### Parallel Processing
+- Use `rayon` for CPU-intensive operations
+- Implement parallel iteration with `par_iter()`
+- Get thread count with `num_cpus::get()`
+
+#### Memory Efficiency
+- Use small data types (e.g., `u16` for Move representation)
+- Reduce memory usage with bit operations
+- Avoid unnecessary clones
+
+### Code Formatting and Linting
+
+#### Auto Formatting
+- Format code with `cargo fmt` (automatically executed via pre-commit hook)
+- Follow standard Rust formatting rules
+
+#### Linting
+- Lint check with `cargo clippy` (automatically executed via pre-commit hook)
+- Allow `unused-imports` warnings (`--allow-dirty`, `--allow-staged`)
+- Fix warnings whenever possible
+
+#### Pre-commit Hooks
+The following pre-commit hooks are configured in the project:
+- `cargo-check`: Compilation check
+- `fmt`: Code formatting
+- `clippy`: Lint check
+- `trailing-whitespace`: Remove trailing whitespace
+- `end-of-file-fixer`: Fix end-of-file newlines
+
+### Type Safety
+
+#### Type Conversion
+- Use explicit type conversion (`as`, `From`/`Into` traits)
+- Use `TryFrom`/`TryInto` when range checking is needed
+
+#### Enumerations
+- Specify memory layout with `#[repr(usize)]`
+- Implement enumeration iteration with `strum` macros
+- Provide conversion methods like `from_usize()` and `to_string()`
+
+### Testing
+
+#### Unit Tests
+- Create test files for each module in the `tests/` directory
+- Test file naming: `test_<module_name>.rs`
+- Test function naming: `test_<functionality>()`
+
+#### Benchmarks
+- Create benchmark files in the `benches/` directory
+- Use the `criterion` crate
+
+### Comments
+
+#### Inline Comments
+- Add explanatory comments for complex logic
+- Explain bit operations and optimization intentions
+
+Example:
+```rust
+// Bit layout:
+// bit 15: drop (1 bit)
+// bit 14: promote (1 bit)
+// bits 13-7: to (7 bits)
+// bits 6-0: from/piece (7 bits)
+self.value = (drop << 15) | (pro << 14) | (to << 7) | from;
+```
+
+#### TODO/FIXME Comments
+- Use `// TODO:` or `// FIXME:` for temporary implementations or improvements
+- Address them as soon as possible
+
+### Code Organization
+
+#### Struct Implementation
+- Place `impl` blocks immediately after struct definitions
+- Provide `Default` trait implementation when possible
+- Place private methods first, public methods last
+
+#### Function Order
+1. Constructors (`new()`, `from_*()`)
+2. Private helper methods
+3. Public methods (alphabetical or logical order)
+
+### Constants and Magic Numbers
+
+#### Constant Definition
+- Define magic numbers as constants
+- Constant names should clearly express meaning
+- Define at module level (use `pub` when needed)
+
+Example:
+```rust
+pub const PROMOTE: u8 = 8;
+pub const PIECE_TYPE_NUMBER: u8 = 15;
+const CACHE_SIZE: usize = 70000;
+```
+
+### Pattern Matching
+
+#### match Expressions
+- Use `match` expressions whenever possible (clearer than `if-else`)
+- Cover all cases (handle default case with `_`)
+- Add conditions with guard clauses
+
+Example:
+```rust
+match n {
+    0 => PieceType::None,
+    1 => PieceType::King,
+    // ...
+    _ => PieceType::None,
+}
+```
+
+### Ownership and Borrowing
+
+#### Borrowing Rules
+- Use references (`&`) whenever possible to avoid moving ownership
+- Use mutable references (`&mut`) when modification is needed
+- Clone only when necessary
+
+#### Lifetimes
+- Use symbols like `'a` when explicit lifetimes are needed
+- Leverage lifetime elision rules whenever possible
