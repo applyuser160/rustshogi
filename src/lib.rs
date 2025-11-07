@@ -22,8 +22,6 @@ pub mod mctsresult;
 pub mod move_pattern;
 #[path = "rustshogi/moves.rs"]
 pub mod moves;
-#[path = "rustshogi/nn_model.rs"]
-pub mod nn_model;
 #[path = "rustshogi/pca.rs"]
 pub mod pca;
 #[path = "rustshogi/piece.rs"]

@@ -1,9 +1,9 @@
 use super::super::board::Board;
 use super::super::color::ColorType;
 use super::super::game::Game;
-use super::super::nn_model::{NnModel, NnModelConfig, TrainingConfig};
 use super::abst::Evaluator;
 use super::database::{DatabaseType, TrainingDatabase, TrainingRecord};
+use super::nn_model::{NnModel, NnModelConfig, TrainingConfig};
 use super::simple::SimpleEvaluator;
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};

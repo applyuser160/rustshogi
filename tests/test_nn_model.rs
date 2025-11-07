@@ -1,8 +1,8 @@
 use burn::backend::ndarray::NdArrayDevice;
 use burn::backend::{Autodiff, NdArray};
 use rustshogi::board::Board;
-use rustshogi::nn_model::NnModel;
-use rustshogi::nn_model::{ModelSaveData, NnModelConfig, TrainingConfig, TrainingData};
+use rustshogi::evaluator::nn_model::NnModel;
+use rustshogi::evaluator::nn_model::{ModelSaveData, NnModelConfig, TrainingConfig, TrainingData};
 
 #[test]
 fn test_nn_model_config() {
@@ -151,7 +151,7 @@ fn test_model_weights_access() {
 #[test]
 fn test_training_with_optimization() {
     use rustshogi::board::Board;
-    use rustshogi::nn_model::{NnModelConfig, TrainingConfig, TrainingData};
+    use rustshogi::evaluator::nn_model::{NnModelConfig, TrainingConfig, TrainingData};
 
     // Create test training data
     let mut training_data = TrainingData::new();
@@ -199,7 +199,7 @@ fn test_training_with_optimization() {
 #[test]
 fn test_training_full_with_autodiff() {
     use rustshogi::board::Board;
-    use rustshogi::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
+    use rustshogi::evaluator::nn_model::{NnModel, NnModelConfig, TrainingConfig, TrainingData};
 
     // Create test training data
     let mut training_data = TrainingData::new();

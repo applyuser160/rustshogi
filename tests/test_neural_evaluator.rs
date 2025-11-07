@@ -3,8 +3,8 @@ use rustshogi::board::Board;
 use rustshogi::color::ColorType;
 use rustshogi::evaluator::database::DatabaseType;
 use rustshogi::evaluator::neural::NeuralEvaluator;
+use rustshogi::evaluator::nn_model::TrainingConfig;
 use rustshogi::game::Game;
-use rustshogi::nn_model::TrainingConfig;
 use rustshogi::piece::PieceType;
 use std::fs;
 
