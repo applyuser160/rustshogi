@@ -57,6 +57,7 @@ RustShogi is a high-performance Shogi library implemented in Rust. It provides P
   - `simple.rs` - SimpleEvaluator (simple evaluation function)
   - `neural.rs` - NeuralEvaluator (neural network evaluation function)
   - `database.rs` - Database evaluation function
+  - `nn_model.rs` - Neural network model
 
 #### Search Algorithms
 - `search/mod.rs` - Search module
@@ -70,7 +71,6 @@ RustShogi is a high-performance Shogi library implemented in Rust. It provides P
 - `direction.rs` - Direction vectors
 - `move_pattern.rs` - Move patterns
 - `random.rs` - Random number generation
-- `nn_model.rs` - Neural network model
 - `pca.rs` - PCA compression
 - `mctsresult.rs` - MCTS result
 
