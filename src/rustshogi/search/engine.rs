@@ -45,11 +45,18 @@ impl SearchEngine {
     }
 
     /// Execute a search
-    pub fn search(&self, board: &Board, color: ColorType, depth: u8) -> EvaluationResult {
+    pub fn search(
+        &self,
+        board: &Board,
+        color: ColorType,
+        depth: u8,
+        limit: Option<usize>,
+    ) -> Vec<EvaluationResult> {
         self.search_strategy.search(
             board,
             color,
             depth,
+            limit,
             self.evaluator
                 .as_ref()
                 .map(|e| e.as_ref() as &dyn Evaluator),
@@ -81,7 +88,14 @@ impl SearchEngine {
     }
 
     #[pyo3(name = "search")]
-    pub fn python_search(&self, board: &Board, color: ColorType, depth: u8) -> EvaluationResult {
-        self.search(board, color, depth)
+    #[pyo3(signature = (board, color, depth, limit=None))]
+    pub fn python_search(
+        &self,
+        board: &Board,
+        color: ColorType,
+        depth: u8,
+        limit: Option<usize>,
+    ) -> Vec<EvaluationResult> {
+        self.search(board, color, depth, limit)
     }
 }
