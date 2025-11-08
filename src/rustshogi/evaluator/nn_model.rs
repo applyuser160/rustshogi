@@ -5,8 +5,6 @@ use burn::{
     tensor::backend::{AutodiffBackend, Backend},
 };
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
 use std::time::Instant;
 
 /// Configuration for the neural network model
@@ -213,74 +211,6 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
 
         let output = self.forward(input_tensor);
         output.squeeze_dims(&[0]) // Convert to (3,)
-    }
-
-    /// Save the model (practical implementation)
-    ///
-    /// # Arguments
-    /// * `path` - Save path
-    ///
-    /// # Returns
-    /// * `Result<(), Box<dyn std::error::Error>>` - Save result
-    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
-        let config = NnModelConfig::default();
-
-        // Generate weights and biases for hidden layers
-        let mut hidden_layers_weights = Vec::new();
-        let mut hidden_layers_bias = Vec::new();
-
-        // From input layer to the first hidden layer
-        hidden_layers_weights.push(vec![vec![0.0; config.input_dim]; config.hidden_dims[0]]);
-        hidden_layers_bias.push(vec![0.0; config.hidden_dims[0]]);
-
-        // Connections between hidden layers
-        for i in 1..config.hidden_dims.len() {
-            hidden_layers_weights.push(vec![
-                vec![0.0; config.hidden_dims[i - 1]];
-                config.hidden_dims[i]
-            ]);
-            hidden_layers_bias.push(vec![0.0; config.hidden_dims[i]]);
-        }
-
-        // Weights and biases for the output layer
-        let last_hidden_dim = config.hidden_dims[config.hidden_dims.len() - 1];
-        let output_layer_weights = vec![vec![0.0; last_hidden_dim]; config.output_dim];
-        let output_layer_bias = vec![0.0; config.output_dim];
-
-        let save_data = ModelSaveData {
-            config,
-            hidden_layers_weights,
-            hidden_layers_bias,
-            output_layer_weights,
-            output_layer_bias,
-        };
-
-        let json_data = serde_json::to_string_pretty(&save_data)?;
-        fs::write(path.as_ref(), json_data)?;
-
-        println!("Model saved to: {:?}", path.as_ref());
-        Ok(())
-    }
-
-    /// Load the model (practical implementation)
-    ///
-    /// # Arguments
-    /// * `path` - Load path
-    /// * `device` - Device
-    ///
-    /// # Returns
-    /// * `Result<Self, Box<dyn std::error::Error>>` - The loaded model
-    pub fn load<P: AsRef<Path>>(
-        path: P,
-        device: &B::Device,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let json_data = fs::read_to_string(path.as_ref())?;
-        let save_data: ModelSaveData = serde_json::from_str(&json_data)?;
-
-        let model = Self::new(&save_data.config, device);
-
-        println!("Model loaded from: {:?}", path.as_ref());
-        Ok(model)
     }
 
     /// Get model weights (for debugging)
