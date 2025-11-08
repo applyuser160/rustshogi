@@ -196,7 +196,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         let raw_output = self.output_layer.forward(hidden);
 
         // Apply Sigmoid (0.0–1.0) to all outputs
-        burn::tensor::activation::sigmoid(raw_output)
+        burn::tensor::activation::softmax(raw_output, 1)
     }
 
     /// Perform prediction from a single board vector
