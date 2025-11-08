@@ -1,11 +1,12 @@
 use burn::{
     nn::{Dropout, DropoutConfig, Linear, LinearConfig},
-    optim::{AdamConfig, GradientsParams, Optimizer},
+    optim::adaptor::OptimizerAdaptor,
+    optim::{Adam, AdamConfig, GradientsParams, Optimizer},
     prelude::*,
     tensor::backend::{AutodiffBackend, Backend},
 };
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime};
 
 /// Configuration for the neural network model
 #[derive(Debug, Config)]
@@ -129,7 +130,7 @@ pub struct NnModel<B: Backend> {
 impl<B: Backend<FloatElem = f32>> NnModel<B> {
     /// Create a new model
     pub fn new(config: &NnModelConfig, device: &B::Device) -> Self {
-        let mut hidden_layers = Vec::new();
+        let mut hidden_layers: Vec<Linear<B>> = Vec::new();
 
         // From input layer to the first hidden layer
         if !config.hidden_dims.is_empty() {
@@ -146,7 +147,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         }
 
         // From the last hidden layer to the output layer
-        let output_layer = if config.hidden_dims.is_empty() {
+        let output_layer: Linear<B> = if config.hidden_dims.is_empty() {
             LinearConfig::new(config.input_dim, config.output_dim).init(device)
         } else {
             LinearConfig::new(
@@ -156,7 +157,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
             .init(device)
         };
 
-        let dropout = DropoutConfig::new(config.dropout_rate).init();
+        let dropout: Dropout = DropoutConfig::new(config.dropout_rate).init();
 
         Self {
             hidden_layers,
@@ -176,7 +177,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
     ///   - Output[1]: Predicted value of black_wins
     ///   - Output[2]: Predicted value of draw_rate
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-        let mut hidden = input;
+        let mut hidden: Tensor<B, 2> = input;
 
         // Apply each hidden layer sequentially
         for layer in &self.hidden_layers {
@@ -191,7 +192,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         }
 
         // Output layer: last hidden layer -> (batch_size, 3)
-        let raw_output = self.output_layer.forward(hidden);
+        let raw_output: Tensor<B, 2> = self.output_layer.forward(hidden);
 
         // Apply Sigmoid (0.0–1.0) to all outputs
         burn::tensor::activation::sigmoid(raw_output)
@@ -205,11 +206,11 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
     /// # Returns
     /// * `Tensor<B, 1>` - Prediction result (3 dimensions)
     pub fn predict_single(&self, board_vector: Vec<f32>) -> Tensor<B, 1> {
-        let device = Default::default();
-        let input_tensor =
+        let device: <B as Backend>::Device = Default::default();
+        let input_tensor: Tensor<B, 2> =
             Tensor::<B, 1>::from_floats(board_vector.as_slice(), &device).unsqueeze_dim(0); // Convert to (1, 2320)
 
-        let output = self.forward(input_tensor);
+        let output: Tensor<B, 2> = self.forward(input_tensor);
         output.squeeze_dims(&[0]) // Convert to (3,)
     }
 
@@ -218,11 +219,11 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
     /// # Returns
     /// * `ModelSaveData` - Model weight data
     pub fn get_weights(&self) -> ModelSaveData {
-        let config = NnModelConfig::default();
+        let config: NnModelConfig = NnModelConfig::default();
 
         // Generate weights and biases for hidden layers
-        let mut hidden_layers_weights = Vec::new();
-        let mut hidden_layers_bias = Vec::new();
+        let mut hidden_layers_weights: Vec<Vec<Vec<f32>>> = Vec::new();
+        let mut hidden_layers_bias: Vec<Vec<f32>> = Vec::new();
 
         // From input layer to the first hidden layer
         hidden_layers_weights.push(vec![vec![0.0; config.input_dim]; config.hidden_dims[0]]);
@@ -238,9 +239,10 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         }
 
         // Weights and biases for the output layer
-        let last_hidden_dim = config.hidden_dims[config.hidden_dims.len() - 1];
-        let output_layer_weights = vec![vec![0.0; last_hidden_dim]; config.output_dim];
-        let output_layer_bias = vec![0.0; config.output_dim];
+        let last_hidden_dim: usize = config.hidden_dims[config.hidden_dims.len() - 1];
+        let output_layer_weights: Vec<Vec<f32>> =
+            vec![vec![0.0; last_hidden_dim]; config.output_dim];
+        let output_layer_bias: Vec<f32> = vec![0.0; config.output_dim];
 
         ModelSaveData {
             config,
@@ -257,7 +259,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
     /// * `weights` - Weight data to set
     /// * `device` - Device
     pub fn set_weights(&mut self, weights: ModelSaveData, device: &B::Device) {
-        let config = &weights.config;
+        let config: &NnModelConfig = &weights.config;
 
         // Set weights for hidden layers
         for (i, layer_weights) in weights.hidden_layers_weights.iter().enumerate() {
@@ -265,8 +267,8 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
             let weights_flat: Vec<f32> = layer_weights.iter().flatten().cloned().collect();
 
             // Convert to tensor
-            let weights_tensor = Tensor::<B, 2>::from_floats(weights_flat.as_slice(), device)
-                .reshape([
+            let weights_tensor: Tensor<B, 2> =
+                Tensor::<B, 2>::from_floats(weights_flat.as_slice(), device).reshape([
                     config.hidden_dims[i],
                     if i == 0 {
                         config.input_dim
@@ -275,7 +277,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
                     },
                 ]);
 
-            let bias_tensor =
+            let bias_tensor: Tensor<B, 1> =
                 Tensor::<B, 1>::from_floats(weights.hidden_layers_bias[i].as_slice(), device);
 
             println!(
@@ -290,13 +292,13 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         // Set weights for the output layer
         let output_weights_flat: Vec<f32> =
             weights.output_layer_weights.into_iter().flatten().collect();
-        let last_hidden_dim = config.hidden_dims[config.hidden_dims.len() - 1];
+        let last_hidden_dim: usize = config.hidden_dims[config.hidden_dims.len() - 1];
 
-        let output_weights_tensor =
+        let output_weights_tensor: Tensor<B, 2> =
             Tensor::<B, 2>::from_floats(output_weights_flat.as_slice(), device)
                 .reshape([config.output_dim, last_hidden_dim]);
 
-        let output_bias_tensor =
+        let output_bias_tensor: Tensor<B, 1> =
             Tensor::<B, 1>::from_floats(weights.output_layer_bias.as_slice(), device);
 
         // Set weights for burn's Linear layer
@@ -315,7 +317,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         }
 
         // Recreate the output layer
-        let output_config = LinearConfig::new(last_hidden_dim, config.output_dim);
+        let output_config: LinearConfig = LinearConfig::new(last_hidden_dim, config.output_dim);
         self.output_layer = output_config.init(device);
 
         println!("Implemented weight setting function (supports multiple hidden layers)");
@@ -355,16 +357,16 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
         println!("Number of epochs: {}", training_config.num_epochs);
 
         // Create Adam optimizer (with support for learning rate scheduling)
-        let optim_config = AdamConfig::new();
-        let mut optim = optim_config.init();
+        let optim_config: AdamConfig = AdamConfig::new();
+        let mut optim: OptimizerAdaptor<Adam, NnModel<B>, B> = optim_config.init();
 
         // Define data dimensions
-        let input_dim = 2320;
-        let output_dim = 3;
-        let total_samples = training_data.len();
+        let input_dim: usize = 2320;
+        let output_dim: usize = 3;
+        let total_samples: usize = training_data.len();
 
         // Set batch size (use user-specified value)
-        let batch_size = training_config.batch_size;
+        let batch_size: usize = training_config.batch_size;
 
         // Data consistency check
         if total_samples == 0 {
@@ -373,8 +375,8 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
 
         // Check data shape with the first sample
         if !training_data.inputs.is_empty() && !training_data.targets.is_empty() {
-            let first_input_len = training_data.inputs[0].len();
-            let first_target_len = training_data.targets[0].len();
+            let first_input_len: usize = training_data.inputs[0].len();
+            let first_target_len: usize = training_data.targets[0].len();
 
             if first_input_len != input_dim {
                 return Err(format!(
@@ -401,28 +403,28 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
         );
 
         // Record training start time
-        let training_start_time = Instant::now();
+        let training_start_time: Instant = Instant::now();
 
         // Variables for early stopping
-        let mut best_loss = f32::INFINITY;
-        let mut patience_counter = 0;
-        let mut total_batch_count = 0;
+        let mut best_loss: f32 = f32::INFINITY;
+        let mut patience_counter: usize = 0;
+        let mut total_batch_count: usize = 0;
 
         // Per-epoch training
         for epoch in 0..training_config.num_epochs {
-            let epoch_start_time = Instant::now();
-            let mut total_loss = 0.0;
-            let mut batch_count = 0;
+            let epoch_start_time: Instant = Instant::now();
+            let mut total_loss: f32 = 0.0;
+            let mut batch_count: usize = 0;
 
             // Learning rate scheduling (adjust learning rate per epoch)
-            let current_lr = if training_config.use_lr_scheduling {
+            let current_lr: f64 = if training_config.use_lr_scheduling {
                 training_config.learning_rate * (0.95_f64.powi(epoch as i32))
             } else {
                 training_config.learning_rate
             };
 
             // Per-batch training
-            let total_batches = total_samples.div_ceil(batch_size);
+            let total_batches: usize = total_samples.div_ceil(batch_size);
 
             println!(
                 "Starting epoch {}: Processing {} batches (batch size: {})",
@@ -430,12 +432,13 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
             );
 
             for batch_start in (0..total_samples).step_by(batch_size) {
-                let batch_end = (batch_start + batch_size).min(total_samples);
-                let current_batch_size = batch_end - batch_start;
+                let batch_end: usize = (batch_start + batch_size).min(total_samples);
+                let current_batch_size: usize = batch_end - batch_start;
 
                 // Memory optimization: Allocate memory only for the batch size
-                let mut batch_inputs = Vec::with_capacity(current_batch_size * input_dim);
-                let mut batch_targets = Vec::with_capacity(current_batch_size * output_dim);
+                let mut batch_inputs: Vec<f32> = Vec::with_capacity(current_batch_size * input_dim);
+                let mut batch_targets: Vec<f32> =
+                    Vec::with_capacity(current_batch_size * output_dim);
 
                 // Copy only the necessary data
                 for i in batch_start..batch_end {
@@ -444,24 +447,24 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
                 }
 
                 // Create tensors for the batch
-                let batch_input_tensor =
+                let batch_input_tensor: Tensor<B, 2> =
                     Tensor::<B, 1>::from_floats(batch_inputs.as_slice(), device)
                         .reshape([current_batch_size, input_dim]);
-                let batch_target_tensor =
+                let batch_target_tensor: Tensor<B, 2> =
                     Tensor::<B, 1>::from_floats(batch_targets.as_slice(), device)
                         .reshape([current_batch_size, output_dim]);
 
                 // Forward pass
-                let predictions = self.forward(batch_input_tensor);
+                let predictions: Tensor<B, 2> = self.forward(batch_input_tensor);
 
                 // Loss calculation (mean squared error)
-                let loss = mse_loss_autodiff(&predictions, &batch_target_tensor);
+                let loss: Tensor<B, 1> = mse_loss_autodiff(&predictions, &batch_target_tensor);
                 let loss_value: f32 = loss.clone().into_scalar();
                 total_loss += loss_value;
 
                 // Backpropagation and optimization
-                let grads = loss.backward();
-                let grads_params = GradientsParams::from_grads(grads, &self);
+                let grads: <B as AutodiffBackend>::Gradients = loss.backward();
+                let grads_params: GradientsParams = GradientsParams::from_grads(grads, &self);
                 self = optim.step(current_lr, self, grads_params);
 
                 batch_count += 1;
@@ -473,24 +476,26 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
 
                 // Progress display (every 10 batches)
                 if batch_count % 10 == 0 {
-                    let elapsed = epoch_start_time.elapsed();
-                    let samples_per_sec = (batch_count * batch_size) as f64 / elapsed.as_secs_f64();
+                    let elapsed: Duration = epoch_start_time.elapsed();
+                    let samples_per_sec: f64 =
+                        (batch_count * batch_size) as f64 / elapsed.as_secs_f64();
 
                     // Calculate remaining time
-                    let progress = batch_count as f64 / total_batches as f64;
-                    let estimated_remaining = if progress > 0.0 {
+                    let progress: f64 = batch_count as f64 / total_batches as f64;
+                    let estimated_remaining: f64 = if progress > 0.0 {
                         elapsed.as_secs_f64() * (1.0 - progress) / progress
                     } else {
                         0.0
                     };
 
                     // Current time and estimated end time
-                    let now = std::time::SystemTime::now();
-                    let estimated_end =
-                        now + std::time::Duration::from_secs(estimated_remaining as u64);
-                    let end_time_str = chrono::DateTime::<chrono::Local>::from(estimated_end)
-                        .format("%H:%M:%S")
-                        .to_string();
+                    let now: SystemTime = SystemTime::now();
+                    let estimated_end: SystemTime =
+                        now + Duration::from_secs(estimated_remaining as u64);
+                    let end_time_str: String =
+                        chrono::DateTime::<chrono::Local>::from(estimated_end)
+                            .format("%H:%M:%S")
+                            .to_string();
 
                     println!(
                         "Epoch {}: Batch {}/{} ({:.1}%) - Loss: {:.6} - Speed: {:.0} samples/sec",
@@ -509,14 +514,14 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
                 }
             }
 
-            let avg_loss = total_loss / batch_count as f32;
-            let epoch_elapsed = epoch_start_time.elapsed();
-            let total_elapsed = training_start_time.elapsed();
+            let avg_loss: f32 = total_loss / batch_count as f32;
+            let epoch_elapsed: Duration = epoch_start_time.elapsed();
+            let total_elapsed: Duration = training_start_time.elapsed();
 
             // Performance optimization: Display epoch statistics
-            let samples_per_sec = total_samples as f64 / epoch_elapsed.as_secs_f64();
-            let epoch_end_time = std::time::SystemTime::now();
-            let end_time_str = chrono::DateTime::<chrono::Local>::from(epoch_end_time)
+            let samples_per_sec: f64 = total_samples as f64 / epoch_elapsed.as_secs_f64();
+            let epoch_end_time: SystemTime = SystemTime::now();
+            let end_time_str: String = chrono::DateTime::<chrono::Local>::from(epoch_end_time)
                 .format("%H:%M:%S")
                 .to_string();
 
@@ -564,21 +569,22 @@ impl<B: AutodiffBackend<FloatElem = f32>> NnModel<B> {
             println!("{}", "=".repeat(60));
         }
 
-        let total_elapsed = training_start_time.elapsed();
-        let total_samples_processed = total_batch_count * batch_size;
-        let overall_samples_per_sec = total_samples_processed as f64 / total_elapsed.as_secs_f64();
+        let total_elapsed: Duration = training_start_time.elapsed();
+        let total_samples_processed: usize = total_batch_count * batch_size;
+        let overall_samples_per_sec: f64 =
+            total_samples_processed as f64 / total_elapsed.as_secs_f64();
 
         // Predict overall end time
-        let training_end_time = std::time::SystemTime::now();
-        let end_time_str = chrono::DateTime::<chrono::Local>::from(training_end_time)
+        let training_end_time: SystemTime = SystemTime::now();
+        let end_time_str: String = chrono::DateTime::<chrono::Local>::from(training_end_time)
             .format("%H:%M:%S")
             .to_string();
 
         // Predict remaining epochs
-        let remaining_epochs =
+        let remaining_epochs: usize =
             training_config.num_epochs - (total_batch_count / total_samples.div_ceil(batch_size));
-        let _estimated_remaining_time = if remaining_epochs > 0 {
-            let avg_epoch_time = total_elapsed.as_secs_f64()
+        let _estimated_remaining_time: f64 = if remaining_epochs > 0 {
+            let avg_epoch_time: f64 = total_elapsed.as_secs_f64()
                 / (total_batch_count / total_samples.div_ceil(batch_size)) as f64;
             avg_epoch_time * remaining_epochs as f64
         } else {
@@ -605,7 +611,7 @@ fn mse_loss_autodiff<B: AutodiffBackend>(
     predictions: &Tensor<B, 2>,
     targets: &Tensor<B, 2>,
 ) -> Tensor<B, 1> {
-    let diff = predictions.clone() - targets.clone();
-    let squared_diff = diff.clone() * diff;
+    let diff: Tensor<B, 2> = predictions.clone() - targets.clone();
+    let squared_diff: Tensor<B, 2> = diff.clone() * diff;
     squared_diff.mean()
 }

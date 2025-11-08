@@ -1,13 +1,16 @@
+use super::super::address::Address;
 use super::super::board::Board;
 use super::super::color::ColorType;
+use super::super::piece::PieceType;
 use super::abst::Evaluator;
 use pyo3::prelude::*;
 
+use std::collections::HashMap;
 /// Simple evaluation function (uses only piece values)
 #[pyclass]
 #[derive(Debug, Clone)]
 pub struct SimpleEvaluator {
-    pub piece_values: std::collections::HashMap<super::super::piece::PieceType, f32>,
+    pub piece_values: HashMap<PieceType, f32>,
 }
 
 impl Default for SimpleEvaluator {
@@ -20,21 +23,21 @@ impl Default for SimpleEvaluator {
 impl SimpleEvaluator {
     #[new]
     pub fn new() -> Self {
-        let mut piece_values = std::collections::HashMap::new();
-        piece_values.insert(super::super::piece::PieceType::King, 10000.0);
-        piece_values.insert(super::super::piece::PieceType::Dragon, 12.0);
-        piece_values.insert(super::super::piece::PieceType::Horse, 11.0);
-        piece_values.insert(super::super::piece::PieceType::Rook, 10.0);
-        piece_values.insert(super::super::piece::PieceType::Bishop, 9.0);
-        piece_values.insert(super::super::piece::PieceType::Gold, 6.0);
-        piece_values.insert(super::super::piece::PieceType::Silver, 5.0);
-        piece_values.insert(super::super::piece::PieceType::Knight, 4.0);
-        piece_values.insert(super::super::piece::PieceType::Lance, 3.0);
-        piece_values.insert(super::super::piece::PieceType::Pawn, 1.0);
-        piece_values.insert(super::super::piece::PieceType::ProSilver, 6.0);
-        piece_values.insert(super::super::piece::PieceType::ProKnight, 5.0);
-        piece_values.insert(super::super::piece::PieceType::ProLance, 4.0);
-        piece_values.insert(super::super::piece::PieceType::ProPawn, 3.0);
+        let mut piece_values: HashMap<PieceType, f32> = HashMap::new();
+        piece_values.insert(PieceType::King, 10000.0);
+        piece_values.insert(PieceType::Dragon, 12.0);
+        piece_values.insert(PieceType::Horse, 11.0);
+        piece_values.insert(PieceType::Rook, 10.0);
+        piece_values.insert(PieceType::Bishop, 9.0);
+        piece_values.insert(PieceType::Gold, 6.0);
+        piece_values.insert(PieceType::Silver, 5.0);
+        piece_values.insert(PieceType::Knight, 4.0);
+        piece_values.insert(PieceType::Lance, 3.0);
+        piece_values.insert(PieceType::Pawn, 1.0);
+        piece_values.insert(PieceType::ProSilver, 6.0);
+        piece_values.insert(PieceType::ProKnight, 5.0);
+        piece_values.insert(PieceType::ProLance, 4.0);
+        piece_values.insert(PieceType::ProPawn, 3.0);
 
         Self { piece_values }
     }
@@ -52,11 +55,11 @@ impl Evaluator for SimpleEvaluator {
         // Evaluate pieces on the board
         for row in 1..=9 {
             for col in 1..=9 {
-                let address = super::super::address::Address::from_numbers(col, row);
+                let address: Address = Address::from_numbers(col, row);
                 let index = address.to_index();
                 let piece = board.get_piece(index);
 
-                if piece.piece_type != super::super::piece::PieceType::None {
+                if piece.piece_type != PieceType::None {
                     if let Some(&value) = self.piece_values.get(&piece.piece_type) {
                         if piece.owner == color {
                             score += value;
@@ -72,12 +75,12 @@ impl Evaluator for SimpleEvaluator {
         for color_type in [ColorType::Black, ColorType::White] {
             for piece_type in [
                 super::super::piece::PieceType::Rook,
-                super::super::piece::PieceType::Bishop,
-                super::super::piece::PieceType::Gold,
-                super::super::piece::PieceType::Silver,
-                super::super::piece::PieceType::Knight,
-                super::super::piece::PieceType::Lance,
-                super::super::piece::PieceType::Pawn,
+                PieceType::Bishop,
+                PieceType::Gold,
+                PieceType::Silver,
+                PieceType::Knight,
+                PieceType::Lance,
+                PieceType::Pawn,
             ] {
                 let count = board.hand.get_count(color_type, piece_type);
                 if count > 0 {

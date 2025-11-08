@@ -70,8 +70,8 @@ pub fn search_helper<F>(
 where
     F: FnOnce(&Board, ColorType, &dyn Evaluator, Vec<Move>, Option<usize>) -> Vec<EvaluationResult>,
 {
-    let default_evaluator;
-    let evaluator_ref = match evaluator {
+    let default_evaluator: SimpleEvaluator;
+    let evaluator_ref: &dyn Evaluator = match evaluator {
         Some(e) => e,
         None => {
             default_evaluator = get_default_evaluator();
@@ -79,7 +79,7 @@ where
         }
     };
 
-    let moves = board.search_moves(color, true);
+    let moves: Vec<Move> = board.search_moves(color, true);
     if moves.is_empty() {
         return handle_no_moves(evaluator_ref, board, color);
     }

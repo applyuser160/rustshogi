@@ -36,9 +36,9 @@ impl Address {
     }
 
     pub fn to_string(&self) -> String {
-        let mut string = String::new();
-        let column = common::integer_to_char(self.value % 11);
-        let mut row = common::integer_to_char(self.value / 11);
+        let mut string: String = String::new();
+        let column: char = common::integer_to_char(self.value % 11);
+        let mut row: char = common::integer_to_char(self.value / 11);
         row = common::number_to_alphabet(row);
         string.push(column);
         string.push(row);
@@ -86,7 +86,7 @@ impl Address {
 
     #[setter]
     pub fn set_column(&mut self, column: usize) {
-        let row = self.get_row();
+        let row: u8 = self.get_row();
         self.value = row * 11 + (column as u8);
     }
 
@@ -97,7 +97,7 @@ impl Address {
 
     #[setter]
     pub fn set_row(&mut self, row: usize) {
-        let column = self.get_column();
+        let column: u8 = self.get_column();
         self.value = (row as u8) * 11 + column;
     }
 

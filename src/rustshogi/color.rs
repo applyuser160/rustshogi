@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 
 #[pyclass(eq, eq_int)]
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
+#[repr(i8)]
 pub enum ColorType {
     None = -1,
     Black = 0,

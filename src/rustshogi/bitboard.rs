@@ -143,8 +143,8 @@ impl BitBoard {
     }
 
     pub fn from_str(string: &str) -> Self {
-        let mut res = 0u128;
-        let mut bit_pos = 127;
+        let mut res: u128 = 0u128;
+        let mut bit_pos: i32 = 127;
         for c in string.chars() {
             if bit_pos < 128 - LENGTH_OF_BOARD as i32 {
                 break;
@@ -164,16 +164,16 @@ impl BitBoard {
     }
 
     pub fn get_trues(&self) -> Vec<u8> {
-        let mut result = Vec::new();
-        let mut d0 = self.data[0];
+        let mut result: Vec<u8> = Vec::new();
+        let mut d0: u64 = self.data[0];
         while d0 != 0 {
-            let index = d0.leading_zeros() as u8;
+            let index: u8 = d0.leading_zeros() as u8;
             result.push(index);
             d0 &= !(1u64 << (63 - index));
         }
-        let mut d1 = self.data[1];
+        let mut d1: u64 = self.data[1];
         while d1 != 0 {
-            let index = d1.leading_zeros() as u8;
+            let index: u8 = d1.leading_zeros() as u8;
             result.push(index + 64);
             d1 &= !(1u64 << (63 - index));
         }
@@ -181,16 +181,16 @@ impl BitBoard {
     }
 
     pub fn get_trues_iter(&self) -> impl Iterator<Item = u8> + '_ {
-        let mut d0 = self.data[0];
-        let mut d1 = self.data[1];
-        let mut state = 0; // 0 for d0, 1 for d1
+        let mut d0: u64 = self.data[0];
+        let mut d1: u64 = self.data[1];
+        let mut state: i32 = 0; // 0 for d0, 1 for d1
 
         std::iter::from_fn(move || {
             if state == 0 {
                 if d0 == 0 {
                     state = 1;
                 } else {
-                    let index = d0.leading_zeros() as u8;
+                    let index: u8 = d0.leading_zeros() as u8;
                     d0 &= !(1u64 << (63 - index));
                     return Some(index);
                 }
@@ -199,7 +199,7 @@ impl BitBoard {
                 if d1 == 0 {
                     return None;
                 } else {
-                    let index = d1.leading_zeros() as u8;
+                    let index: u8 = d1.leading_zeros() as u8;
                     d1 &= !(1u64 << (63 - index));
                     return Some(index + 64);
                 }
@@ -225,7 +225,7 @@ impl BitBoard {
         }
 
         // Scalar fallback
-        let mut result = boards[0];
+        let mut result: BitBoard = boards[0];
         for board in &boards[1..] {
             result &= *board;
         }
@@ -245,7 +245,7 @@ impl BitBoard {
         }
 
         // Scalar fallback
-        let mut result = boards[0];
+        let mut result: BitBoard = boards[0];
         for board in &boards[1..] {
             result |= *board;
         }
@@ -265,7 +265,7 @@ impl BitBoard {
         }
 
         // Scalar fallback
-        let mut result = boards[0];
+        let mut result: BitBoard = boards[0];
         for board in &boards[1..] {
             result ^= *board;
         }
@@ -313,14 +313,14 @@ static BOARD_MASK: BitBoard = BitBoard {
 /// `sse2` feature is available on the CPU.
 unsafe fn sse2_xor(a: &BitBoard, b: &BitBoard) -> BitBoard {
     // Load the two 64-bit integers of each BitBoard into a 128-bit SSE register.
-    let a_vec = _mm_loadu_si128(a.data.as_ptr() as *const __m128i);
-    let b_vec = _mm_loadu_si128(b.data.as_ptr() as *const __m128i);
+    let a_vec: __m128i = _mm_loadu_si128(a.data.as_ptr() as *const __m128i);
+    let b_vec: __m128i = _mm_loadu_si128(b.data.as_ptr() as *const __m128i);
 
     // Perform the bitwise XOR operation on the 128-bit registers.
-    let result = _mm_xor_si128(a_vec, b_vec);
+    let result: __m128i = _mm_xor_si128(a_vec, b_vec);
 
     // Store the result back into a BitBoard data array.
-    let mut output = [0u64; 2];
+    let mut output: [u64; 2] = [0u64; 2];
     _mm_storeu_si128(output.as_mut_ptr() as *mut __m128i, result);
     BitBoard { data: output }
 }
@@ -333,14 +333,14 @@ unsafe fn sse2_xor(a: &BitBoard, b: &BitBoard) -> BitBoard {
 /// `sse2` feature is available on the CPU.
 unsafe fn sse2_bitand(a: &BitBoard, b: &BitBoard) -> BitBoard {
     // Load the two 64-bit integers of each BitBoard into a 128-bit SSE register.
-    let a_vec = _mm_loadu_si128(a.data.as_ptr() as *const __m128i);
-    let b_vec = _mm_loadu_si128(b.data.as_ptr() as *const __m128i);
+    let a_vec: __m128i = _mm_loadu_si128(a.data.as_ptr() as *const __m128i);
+    let b_vec: __m128i = _mm_loadu_si128(b.data.as_ptr() as *const __m128i);
 
     // Perform the bitwise AND operation on the 128-bit registers.
-    let result = _mm_and_si128(a_vec, b_vec);
+    let result: __m128i = _mm_and_si128(a_vec, b_vec);
 
     // Store the result back into a BitBoard data array.
-    let mut output = [0u64; 2];
+    let mut output: [u64; 2] = [0u64; 2];
     _mm_storeu_si128(output.as_mut_ptr() as *mut __m128i, result);
     BitBoard { data: output }
 }
@@ -399,14 +399,14 @@ impl BitAndAssign<&BitBoard> for BitBoard {
 /// `sse2` feature is available on the CPU.
 unsafe fn sse2_bitor(a: &BitBoard, b: &BitBoard) -> BitBoard {
     // Load the two 64-bit integers of each BitBoard into a 128-bit SSE register.
-    let a_vec = _mm_loadu_si128(a.data.as_ptr() as *const __m128i);
-    let b_vec = _mm_loadu_si128(b.data.as_ptr() as *const __m128i);
+    let a_vec: __m128i = _mm_loadu_si128(a.data.as_ptr() as *const __m128i);
+    let b_vec: __m128i = _mm_loadu_si128(b.data.as_ptr() as *const __m128i);
 
     // Perform the bitwise OR operation on the 128-bit registers.
-    let result = _mm_or_si128(a_vec, b_vec);
+    let result: __m128i = _mm_or_si128(a_vec, b_vec);
 
     // Store the result back into a BitBoard data array.
-    let mut output = [0u64; 2];
+    let mut output: [u64; 2] = [0u64; 2];
     _mm_storeu_si128(output.as_mut_ptr() as *mut __m128i, result);
     BitBoard { data: output }
 }
@@ -576,8 +576,8 @@ impl ShlAssign<usize> for BitBoard {
 }
 
 pub fn generate_columns(column_nos: Vec<usize>) -> BitBoard {
-    let mut bitboard = BitBoard::new();
-    let mut first_row_mask = BitBoard::new();
+    let mut bitboard: BitBoard = BitBoard::new();
+    let mut first_row_mask: BitBoard = BitBoard::new();
     for column_no in column_nos {
         // Assumes column_no is 0-indexed (0-8) for the 9 playable columns
         // The first playable row starts at index 12 (1*11 + 1)
@@ -594,9 +594,9 @@ pub fn generate_columns(column_nos: Vec<usize>) -> BitBoard {
 
 pub fn generate_column(column_no: usize) -> BitBoard {
     // Assumes column_no is 0-indexed (0-8) for the 9 playable columns
-    let mut bitboard = BitBoard::new();
-    let index = 11 + (column_no + 1);
-    let mut mask = BitBoard::from_u128(1u128 << (127 - index));
+    let mut bitboard: BitBoard = BitBoard::new();
+    let index: usize = 11 + (column_no + 1);
+    let mut mask: BitBoard = BitBoard::from_u128(1u128 << (127 - index));
     for _r in 0..LENGTH_OF_EDGE {
         bitboard |= mask;
         mask >>= LENGTH_OF_FRAME as usize;
@@ -625,32 +625,32 @@ mod avx2 {
             return vec![BitBoard::new(); boards.len()];
         }
 
-        let mut result = Vec::with_capacity(boards.len());
-        let mut i = 0;
+        let mut result: Vec<BitBoard> = Vec::with_capacity(boards.len());
+        let mut i: usize = 0;
 
         // Process boards in chunks of 2 (256 bits)
         while i + 1 < boards.len() {
-            let board_ptr = boards.as_ptr().add(i) as *const __m256i;
-            let v = _mm256_loadu_si256(board_ptr);
+            let board_ptr: *const __m256i = boards.as_ptr().add(i) as *const __m256i;
+            let v: __m256i = _mm256_loadu_si256(board_ptr);
 
-            let shifted_v = if rhs < 64 {
-                let shift_vec = _mm256_set1_epi64x(rhs as i64);
-                let shifted_right = _mm256_srlv_epi64(v, shift_vec);
-                let shuffled_v = _mm256_permute4x64_epi64(v, 0xA0); // [d0, d0, d2, d2]
-                let shift_left_vec = _mm256_set1_epi64x((64 - rhs) as i64);
-                let shifted_left = _mm256_sllv_epi64(shuffled_v, shift_left_vec);
-                let mask = _mm256_set_epi64x(-1, 0, -1, 0);
-                let carry = _mm256_and_si256(shifted_left, mask);
+            let shifted_v: __m256i = if rhs < 64 {
+                let shift_vec: __m256i = _mm256_set1_epi64x(rhs as i64);
+                let shifted_right: __m256i = _mm256_srlv_epi64(v, shift_vec);
+                let shuffled_v: __m256i = _mm256_permute4x64_epi64(v, 0xA0); // [d0, d0, d2, d2]
+                let shift_left_vec: __m256i = _mm256_set1_epi64x((64 - rhs) as i64);
+                let shifted_left: __m256i = _mm256_sllv_epi64(shuffled_v, shift_left_vec);
+                let mask: __m256i = _mm256_set_epi64x(-1, 0, -1, 0);
+                let carry: __m256i = _mm256_and_si256(shifted_left, mask);
                 _mm256_or_si256(shifted_right, carry)
             } else {
-                let shift_vec = _mm256_set1_epi64x((rhs - 64) as i64);
-                let shuffled_v = _mm256_permute4x64_epi64(v, 0xA0); // [d0, d0, d2, d2]
-                let shifted = _mm256_srlv_epi64(shuffled_v, shift_vec);
-                let mask = _mm256_set_epi64x(-1, 0, -1, 0);
+                let shift_vec: __m256i = _mm256_set1_epi64x((rhs - 64) as i64);
+                let shuffled_v: __m256i = _mm256_permute4x64_epi64(v, 0xA0); // [d0, d0, d2, d2]
+                let shifted: __m256i = _mm256_srlv_epi64(shuffled_v, shift_vec);
+                let mask: __m256i = _mm256_set_epi64x(-1, 0, -1, 0);
                 _mm256_and_si256(shifted, mask)
             };
 
-            let mut output = [0u64; 4];
+            let mut output: [u64; 4] = [0u64; 4];
             _mm256_storeu_si256(output.as_mut_ptr() as *mut __m256i, shifted_v);
             result.push(BitBoard {
                 data: [output[0], output[1]],
@@ -677,31 +677,31 @@ mod avx2 {
             return vec![BitBoard::new(); boards.len()];
         }
 
-        let mut result = Vec::with_capacity(boards.len());
-        let mut i = 0;
+        let mut result: Vec<BitBoard> = Vec::with_capacity(boards.len());
+        let mut i: usize = 0;
 
         while i + 1 < boards.len() {
-            let board_ptr = boards.as_ptr().add(i) as *const __m256i;
-            let v = _mm256_loadu_si256(board_ptr);
+            let board_ptr: *const __m256i = boards.as_ptr().add(i) as *const __m256i;
+            let v: __m256i = _mm256_loadu_si256(board_ptr);
 
-            let shifted_v = if rhs < 64 {
-                let shift_vec = _mm256_set1_epi64x(rhs as i64);
+            let shifted_v: __m256i = if rhs < 64 {
+                let shift_vec: __m256i = _mm256_set1_epi64x(rhs as i64);
                 let shifted_left = _mm256_sllv_epi64(v, shift_vec);
-                let shuffled_v = _mm256_permute4x64_epi64(v, 0xF5); // [d1, d1, d3, d3]
-                let shift_right_vec = _mm256_set1_epi64x((64 - rhs) as i64);
-                let shifted_right = _mm256_srlv_epi64(shuffled_v, shift_right_vec);
-                let mask = _mm256_set_epi64x(0, -1, 0, -1);
-                let carry = _mm256_and_si256(shifted_right, mask);
+                let shuffled_v: __m256i = _mm256_permute4x64_epi64(v, 0xF5); // [d1, d1, d3, d3]
+                let shift_right_vec: __m256i = _mm256_set1_epi64x((64 - rhs) as i64);
+                let shifted_right: __m256i = _mm256_srlv_epi64(shuffled_v, shift_right_vec);
+                let mask: __m256i = _mm256_set_epi64x(0, -1, 0, -1);
+                let carry: __m256i = _mm256_and_si256(shifted_right, mask);
                 _mm256_or_si256(shifted_left, carry)
             } else {
-                let shift_vec = _mm256_set1_epi64x((rhs - 64) as i64);
-                let shuffled_v = _mm256_permute4x64_epi64(v, 0xF5); // [d1, d1, d3, d3]
-                let shifted = _mm256_sllv_epi64(shuffled_v, shift_vec);
-                let mask = _mm256_set_epi64x(0, -1, 0, -1);
+                let shift_vec: __m256i = _mm256_set1_epi64x((rhs - 64) as i64);
+                let shuffled_v: __m256i = _mm256_permute4x64_epi64(v, 0xF5); // [d1, d1, d3, d3]
+                let shifted: __m256i = _mm256_sllv_epi64(shuffled_v, shift_vec);
+                let mask: __m256i = _mm256_set_epi64x(0, -1, 0, -1);
                 _mm256_and_si256(shifted, mask)
             };
 
-            let mut output = [0u64; 4];
+            let mut output: [u64; 4] = [0u64; 4];
             _mm256_storeu_si256(output.as_mut_ptr() as *mut __m256i, shifted_v);
             result.push(BitBoard {
                 data: [output[0], output[1]],
@@ -731,20 +731,20 @@ mod avx2 {
         // acc_vec will hold two parallel accumulations.
         // Lane 1: boards[0] & boards[2] & ...
         // Lane 2: boards[1] & boards[3] & ...
-        let mut acc_vec = _mm256_loadu_si256(boards.as_ptr() as *const __m256i);
+        let mut acc_vec: __m256i = _mm256_loadu_si256(boards.as_ptr() as *const __m256i);
 
-        let mut i = 2;
+        let mut i: usize = 2;
         while i + 1 < boards.len() {
-            let next_vec = _mm256_loadu_si256(boards[i..].as_ptr() as *const __m256i);
+            let next_vec: __m256i = _mm256_loadu_si256(boards[i..].as_ptr() as *const __m256i);
             acc_vec = _mm256_and_si256(acc_vec, next_vec);
             i += 2;
         }
 
         // Reduce the two lanes in acc_vec.
-        let mut temp_output = [0u64; 4];
+        let mut temp_output: [u64; 4] = [0u64; 4];
         _mm256_storeu_si256(temp_output.as_mut_ptr() as *mut __m256i, acc_vec);
 
-        let mut result = BitBoard {
+        let mut result: BitBoard = BitBoard {
             data: [temp_output[0], temp_output[1]],
         } & BitBoard {
             data: [temp_output[2], temp_output[3]],
@@ -766,19 +766,19 @@ mod avx2 {
             return boards[0];
         }
 
-        let mut acc_vec = _mm256_loadu_si256(boards.as_ptr() as *const __m256i);
+        let mut acc_vec: __m256i = _mm256_loadu_si256(boards.as_ptr() as *const __m256i);
 
-        let mut i = 2;
+        let mut i: usize = 2;
         while i + 1 < boards.len() {
-            let next_vec = _mm256_loadu_si256(boards[i..].as_ptr() as *const __m256i);
+            let next_vec: __m256i = _mm256_loadu_si256(boards[i..].as_ptr() as *const __m256i);
             acc_vec = _mm256_or_si256(acc_vec, next_vec);
             i += 2;
         }
 
-        let mut temp_output = [0u64; 4];
+        let mut temp_output: [u64; 4] = [0u64; 4];
         _mm256_storeu_si256(temp_output.as_mut_ptr() as *mut __m256i, acc_vec);
 
-        let mut result = BitBoard {
+        let mut result: BitBoard = BitBoard {
             data: [temp_output[0], temp_output[1]],
         } | BitBoard {
             data: [temp_output[2], temp_output[3]],
@@ -799,19 +799,19 @@ mod avx2 {
             return boards[0];
         }
 
-        let mut acc_vec = _mm256_loadu_si256(boards.as_ptr() as *const __m256i);
+        let mut acc_vec: __m256i = _mm256_loadu_si256(boards.as_ptr() as *const __m256i);
 
-        let mut i = 2;
+        let mut i: usize = 2;
         while i + 1 < boards.len() {
-            let next_vec = _mm256_loadu_si256(boards[i..].as_ptr() as *const __m256i);
+            let next_vec: __m256i = _mm256_loadu_si256(boards[i..].as_ptr() as *const __m256i);
             acc_vec = _mm256_xor_si256(acc_vec, next_vec);
             i += 2;
         }
 
-        let mut temp_output = [0u64; 4];
+        let mut temp_output: [u64; 4] = [0u64; 4];
         _mm256_storeu_si256(temp_output.as_mut_ptr() as *mut __m256i, acc_vec);
 
-        let mut result = BitBoard {
+        let mut result: BitBoard = BitBoard {
             data: [temp_output[0], temp_output[1]],
         } ^ BitBoard {
             data: [temp_output[2], temp_output[3]],

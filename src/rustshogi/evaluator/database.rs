@@ -1,7 +1,8 @@
 use chrono;
 use pyo3::prelude::*;
-use rusqlite;
+use rusqlite::{Connection, Statement};
 use serde::{Deserialize, Serialize};
+use tokio::runtime::Runtime;
 use tokio_postgres;
 
 /// Record structure for the training database
@@ -45,7 +46,7 @@ impl TrainingDatabase {
     pub fn init_database(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
+                let conn: Connection = Connection::open(db_path)?;
 
                 conn.execute(
                     "CREATE TABLE IF NOT EXISTS training_data (
@@ -69,7 +70,7 @@ impl TrainingDatabase {
                 Ok(())
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) = tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
 
@@ -114,8 +115,8 @@ impl TrainingDatabase {
     ) -> Result<Vec<(String, i32, i32, i32)>, Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
-                let mut stmt = conn.prepare(
+                let conn: Connection = Connection::open(db_path)?;
+                let mut stmt: Statement = conn.prepare(
                     "SELECT board, white_wins, black_wins, total_games
                      FROM training_data
                      WHERE total_games >= ?1
@@ -124,8 +125,8 @@ impl TrainingDatabase {
                 )?;
 
                 let mut batch: Vec<(String, i32, i32, i32)> = Vec::new();
-                let limit_param = batch_size as i32;
-                let offset_param = offset as i32;
+                let limit_param: i32 = batch_size as i32;
+                let offset_param: i32 = offset as i32;
                 let rows = stmt.query_map(
                     rusqlite::params![min_games, limit_param, offset_param],
                     |row| {
@@ -144,7 +145,7 @@ impl TrainingDatabase {
                 Ok(batch)
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) =
                         tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
@@ -155,7 +156,7 @@ impl TrainingDatabase {
                         }
                     });
 
-                    let rows = client
+                    let rows: Vec<tokio_postgres::Row> = client
                         .query(
                             &format!(
                                 "SELECT board, white_wins, black_wins, total_games
@@ -169,7 +170,7 @@ impl TrainingDatabase {
                         )
                         .await?;
 
-                    let mut batch = Vec::new();
+                    let mut batch: Vec<(String, i32, i32, i32)> = Vec::new();
                     for row in rows {
                         let board: String = row.get(0);
                         let white_wins: i32 = row.get(1);
@@ -191,23 +192,24 @@ impl TrainingDatabase {
     ) -> Result<Option<TrainingRecord>, Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
-                let mut stmt = conn.prepare(
+                let conn: Connection = Connection::open(db_path)?;
+                let mut stmt: Statement<'_> = conn.prepare(
                     "SELECT id, board, white_wins, black_wins, total_games, created_at, updated_at
                      FROM training_data WHERE id = ?1",
                 )?;
 
-                let result = stmt.query_row([record_id], |row| {
-                    Ok(TrainingRecord {
-                        id: row.get(0)?,
-                        board: row.get(1)?,
-                        white_wins: row.get(2)?,
-                        black_wins: row.get(3)?,
-                        total_games: row.get(4)?,
-                        created_at: row.get(5)?,
-                        updated_at: row.get(6)?,
-                    })
-                });
+                let result: Result<TrainingRecord, rusqlite::Error> =
+                    stmt.query_row([record_id], |row| {
+                        Ok(TrainingRecord {
+                            id: row.get(0)?,
+                            board: row.get(1)?,
+                            white_wins: row.get(2)?,
+                            black_wins: row.get(3)?,
+                            total_games: row.get(4)?,
+                            created_at: row.get(5)?,
+                            updated_at: row.get(6)?,
+                        })
+                    });
 
                 match result {
                     Ok(record) => Ok(Some(record)),
@@ -216,7 +218,7 @@ impl TrainingDatabase {
                 }
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) = tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
 
@@ -226,7 +228,7 @@ impl TrainingDatabase {
                         }
                     });
 
-                    let rows = client.query(
+                    let rows: Vec<tokio_postgres::Row> = client.query(
                         "SELECT id, board, white_wins, black_wins, total_games, created_at, updated_at
                          FROM training_data WHERE id = $1",
                         &[&(record_id as i32)],
@@ -235,7 +237,7 @@ impl TrainingDatabase {
                     if rows.is_empty() {
                         Ok(None)
                     } else {
-                        let row = &rows[0];
+                        let row: &tokio_postgres::Row = &rows[0];
                         Ok(Some(TrainingRecord {
                             id: row.get::<_, i32>(0) as i64,
                             board: row.get(1),
@@ -257,12 +259,12 @@ impl TrainingDatabase {
     ) -> Result<(i64, i64, i64), Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
-                let mut stmt = conn.prepare(
+                let conn: Connection = rusqlite::Connection::open(db_path)?;
+                let mut stmt: Statement<'_> = conn.prepare(
                     "SELECT COUNT(*), COALESCE(SUM(total_games), 0), COALESCE(AVG(total_games), 0) FROM training_data"
                 )?;
 
-                let result = stmt.query_row([], |row| {
+                let result: (i64, i64, i64) = stmt.query_row([], |row| {
                     Ok((
                         row.get::<_, i64>(0)?,
                         row.get::<_, i64>(1)?,
@@ -273,7 +275,7 @@ impl TrainingDatabase {
                 Ok(result)
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) = tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
 
@@ -283,7 +285,7 @@ impl TrainingDatabase {
                         }
                     });
 
-                    let row = client.query_one(
+                    let row: tokio_postgres::Row = client.query_one(
                         "SELECT COUNT(*), COALESCE(SUM(total_games), 0), COALESCE(CAST(AVG(total_games) AS DOUBLE PRECISION), 0) FROM training_data",
                         &[],
                     ).await?;
@@ -312,7 +314,7 @@ impl TrainingDatabase {
                 )?;
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) =
                         tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
@@ -344,9 +346,10 @@ impl TrainingDatabase {
     ) -> Result<Vec<(i64, String)>, Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
-                let query = "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC";
-                let mut stmt = conn.prepare(query)?;
+                let conn: Connection = rusqlite::Connection::open(db_path)?;
+                let query: &str =
+                    "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC";
+                let mut stmt: Statement<'_> = conn.prepare(query)?;
 
                 let mut records: Vec<(i64, String)> = Vec::new();
                 let rows = stmt.query_map([], |row| {
@@ -365,7 +368,7 @@ impl TrainingDatabase {
                 Ok(records)
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) =
                         tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
@@ -376,15 +379,15 @@ impl TrainingDatabase {
                         }
                     });
 
-                    let mut query =
+                    let mut query: String =
                         "SELECT id, board FROM training_data ORDER BY total_games ASC, id ASC"
                             .to_string();
                     if let Some(max) = max_records {
                         query.push_str(&format!(" LIMIT {}", max));
                     }
 
-                    let rows = client.query(&query, &[]).await?;
-                    let mut records = Vec::new();
+                    let rows: Vec<tokio_postgres::Row> = client.query(&query, &[]).await?;
+                    let mut records: Vec<(i64, String)> = Vec::new();
 
                     for row in rows {
                         let id: i32 = row.get(0);
@@ -406,9 +409,9 @@ impl TrainingDatabase {
         let mut updated_count = 0;
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
+                let conn: Connection = Connection::open(db_path)?;
                 for (id, white_wins, black_wins, total_games) in results {
-                    let rows_affected = conn.execute(
+                    let rows_affected: usize = conn.execute(
                         "UPDATE training_data
                          SET white_wins = white_wins + ?1,
                              black_wins = black_wins + ?2,
@@ -423,7 +426,7 @@ impl TrainingDatabase {
                 }
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) =
                         tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
@@ -434,7 +437,7 @@ impl TrainingDatabase {
                     });
 
                     for (id, white_wins, black_wins, total_games) in results {
-                        let rows_affected = client
+                        let rows_affected: u64 = client
                             .execute(
                                 "UPDATE training_data
                                  SET white_wins = white_wins + $1,
@@ -463,7 +466,7 @@ impl TrainingDatabase {
     ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
+                let conn: Connection = Connection::open(db_path)?;
                 let count: i64 = conn.query_row(
                     "SELECT COUNT(*) FROM training_data WHERE total_games >= ?1",
                     [min_games],
@@ -472,7 +475,7 @@ impl TrainingDatabase {
                 Ok(count as usize)
             }
             DatabaseType::Postgres(connection_string) => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt: Runtime = Runtime::new().unwrap();
                 rt.block_on(async {
                     let (client, connection) =
                         tokio_postgres::connect(connection_string, tokio_postgres::NoTls).await?;
@@ -483,7 +486,7 @@ impl TrainingDatabase {
                         }
                     });
 
-                    let row = client
+                    let row: tokio_postgres::Row = client
                         .query_one(
                             "SELECT COUNT(*) FROM training_data WHERE total_games >= $1",
                             &[&min_games],
