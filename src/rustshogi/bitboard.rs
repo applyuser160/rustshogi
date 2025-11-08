@@ -581,7 +581,7 @@ pub fn generate_columns(column_nos: Vec<usize>) -> BitBoard {
     for column_no in column_nos {
         // Assumes column_no is 0-indexed (0-8) for the 9 playable columns
         // The first playable row starts at index 12 (1*11 + 1)
-        let index = 11 + (column_no + 1);
+        let index: usize = 11 + (column_no + 1);
         first_row_mask |= BitBoard::from_u128(1u128 << (127 - index));
     }
 
@@ -686,7 +686,7 @@ mod avx2 {
 
             let shifted_v: __m256i = if rhs < 64 {
                 let shift_vec: __m256i = _mm256_set1_epi64x(rhs as i64);
-                let shifted_left = _mm256_sllv_epi64(v, shift_vec);
+                let shifted_left: __m256i = _mm256_sllv_epi64(v, shift_vec);
                 let shuffled_v: __m256i = _mm256_permute4x64_epi64(v, 0xF5); // [d1, d1, d3, d3]
                 let shift_right_vec: __m256i = _mm256_set1_epi64x((64 - rhs) as i64);
                 let shifted_right: __m256i = _mm256_srlv_epi64(shuffled_v, shift_right_vec);

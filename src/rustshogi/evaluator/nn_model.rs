@@ -308,7 +308,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         // Recreate hidden layers
         self.hidden_layers.clear();
         for i in 0..config.hidden_dims.len() {
-            let layer_config = if i == 0 {
+            let layer_config: LinearConfig = if i == 0 {
                 LinearConfig::new(config.input_dim, config.hidden_dims[i])
             } else {
                 LinearConfig::new(config.hidden_dims[i - 1], config.hidden_dims[i])

@@ -307,7 +307,7 @@ impl TrainingDatabase {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match &self.db_type {
             DatabaseType::Sqlite(db_path) => {
-                let conn = rusqlite::Connection::open(db_path)?;
+                let conn: Connection = rusqlite::Connection::open(db_path)?;
                 conn.execute(
                     "INSERT INTO training_data (board) VALUES (?1)",
                     [board_sfen],

@@ -258,7 +258,7 @@ impl Piece {
     }
 
     pub fn to_u8(&self) -> u8 {
-        let mut res = self.piece_type as u8;
+        let mut res: u8 = self.piece_type as u8;
         res += (self.owner as u8) << 6;
         res
     }

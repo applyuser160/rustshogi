@@ -64,7 +64,7 @@ impl Game {
                     .hand
                     .add_pieces(piece.owner, piece.piece_type, consecutive);
             } else {
-                let piece = Piece::from_char(ch);
+                let piece: Piece = Piece::from_char(ch);
                 self.board.hand.add_piece(piece.owner, piece.piece_type);
             }
         }

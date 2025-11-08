@@ -45,7 +45,7 @@ impl AlphaBetaSearchStrategy {
         for mv in &moves {
             let mut new_board = board.clone();
             new_board.execute_move(mv);
-            let score = -self.alphabeta(
+            let score: f32 = -self.alphabeta(
                 &new_board,
                 get_reverse_color(color),
                 depth - 1,

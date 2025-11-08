@@ -184,7 +184,7 @@ impl NeuralEvaluator {
             }
         }
 
-        let total_elapsed = start_time.elapsed();
+        let total_elapsed: Duration = start_time.elapsed();
         println!(
             "Updated {} records (total time: {:.2}s)",
             updated_count,
@@ -305,11 +305,10 @@ impl NeuralEvaluator {
         } else {
             0.0
         };
-        let estimated_remaining_mins = estimated_remaining_secs / 60.0;
+        let estimated_remaining_mins: f64 = estimated_remaining_secs / 60.0;
 
-        let now: SystemTime = std::time::SystemTime::now();
-        let estimated_end: SystemTime =
-            now + std::time::Duration::from_secs(estimated_remaining_secs as u64);
+        let now: SystemTime = SystemTime::now();
+        let estimated_end: SystemTime = now + Duration::from_secs(estimated_remaining_secs as u64);
         let end_time_str: String = chrono::DateTime::<chrono::Local>::from(estimated_end)
             .format("%H:%M:%S")
             .to_string();

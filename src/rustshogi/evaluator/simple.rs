@@ -1,7 +1,7 @@
 use super::super::address::Address;
 use super::super::board::Board;
 use super::super::color::ColorType;
-use super::super::piece::PieceType;
+use super::super::piece::{Piece, PieceType};
 use super::abst::Evaluator;
 use pyo3::prelude::*;
 
@@ -56,8 +56,8 @@ impl Evaluator for SimpleEvaluator {
         for row in 1..=9 {
             for col in 1..=9 {
                 let address: Address = Address::from_numbers(col, row);
-                let index = address.to_index();
-                let piece = board.get_piece(index);
+                let index: u8 = address.to_index();
+                let piece: Piece = board.get_piece(index);
 
                 if piece.piece_type != PieceType::None {
                     if let Some(&value) = self.piece_values.get(&piece.piece_type) {
@@ -82,7 +82,7 @@ impl Evaluator for SimpleEvaluator {
                 PieceType::Lance,
                 PieceType::Pawn,
             ] {
-                let count = board.hand.get_count(color_type, piece_type);
+                let count: u8 = board.hand.get_count(color_type, piece_type);
                 if count > 0 {
                     if let Some(&value) = self.piece_values.get(&piece_type) {
                         if color_type == color {
