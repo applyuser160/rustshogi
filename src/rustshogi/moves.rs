@@ -57,25 +57,25 @@ impl Move {
     }
 
     pub fn from_standart(from: address::Address, to: address::Address, promote: bool) -> Self {
-        let mut res = Self::new();
+        let mut res: Move = Self::new();
         res.standart_constructor(from, to, promote);
         res
     }
 
     pub fn from_drop(piece: piece::Piece, to: address::Address) -> Self {
-        let mut res = Self::new();
+        let mut res: Move = Self::new();
         res.drop_constructor(piece, to);
         res
     }
 
     pub fn from_csa(csa: &str) -> Self {
-        let mut res = Self::new();
-        let to = address::Address::from_string(&csa[2..]);
+        let mut res: Move = Self::new();
+        let to: Address = address::Address::from_string(&csa[2..]);
         if Self::is_drop(csa) {
-            let piece = piece::Piece::from_char(csa.chars().nth(0).unwrap());
+            let piece: Piece = piece::Piece::from_char(csa.chars().nth(0).unwrap());
             res.drop_constructor(piece, to);
         } else {
-            let from = address::Address::from_string(csa);
+            let from: Address = address::Address::from_string(csa);
             res.standart_constructor(from, to, Self::is_promote(csa));
         }
         res
@@ -91,35 +91,35 @@ impl Move {
 
     pub fn get_from(&self) -> address::Address {
         // bits 6-0: from (7 bits)
-        let v = (self.value & 0x7F) as u8;
+        let v: u8 = (self.value & 0x7F) as u8;
         address::Address::from_number(v)
     }
 
     pub fn get_to(&self) -> address::Address {
         // bits 13-7: to (7 bits)
-        let v = ((self.value >> 7) & 0x7F) as u8;
+        let v: u8 = ((self.value >> 7) & 0x7F) as u8;
         address::Address::from_number(v)
     }
 
     pub fn get_piece(&self) -> piece::Piece {
         // For a drop move, the piece information is stored in the lower 7 bits (bits 0-6)
-        let v = (self.value & 0x7F) as u8;
+        let v: u8 = (self.value & 0x7F) as u8;
         piece::Piece::from_u8(v)
     }
 
     pub fn to_string(&self) -> String {
-        let mut first = String::with_capacity(2);
+        let mut first: String = String::with_capacity(2);
         if self.get_is_drop() {
-            let piece = self.get_piece();
+            let piece: Piece = self.get_piece();
             first.push_str(&piece.to_string());
             first.push('*');
         } else {
-            let from = self.get_from();
+            let from: Address = self.get_from();
             first.push_str(&from.to_string());
         }
-        let to = self.get_to();
-        let is_pro = self.get_is_promote();
-        let mut res = String::with_capacity(5);
+        let to: Address = self.get_to();
+        let is_pro: bool = self.get_is_promote();
+        let mut res: String = String::with_capacity(5);
         res.push_str(&first);
         res.push_str(&to.to_string());
         if is_pro {

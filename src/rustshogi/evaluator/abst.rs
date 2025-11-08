@@ -1,16 +1,16 @@
 use super::super::board::Board;
 use super::super::color::ColorType;
 
-/// 評価関数のトレイト
-/// 各評価関数はこのトレイトを実装することで、探索エンジンで使用可能
+/// Trait for evaluation functions
+/// Each evaluation function can be used in the search engine by implementing this trait
 pub trait Evaluator: Send + Sync {
-    /// 盤面を評価する
+    /// Evaluates a board position
     ///
     /// # Arguments
-    /// * `board` - 評価する盤面
-    /// * `color` - 評価するプレイヤーの色
+    /// * `board` - The board position to evaluate
+    /// * `color` - The color of the player to evaluate for
     ///
     /// # Returns
-    /// 評価値（colorの視点での評価、大きい方が有利）
+    /// Evaluation value (from color's perspective, higher is better)
     fn evaluate(&self, board: &Board, color: ColorType) -> f32;
 }

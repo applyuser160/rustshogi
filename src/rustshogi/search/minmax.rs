@@ -1,6 +1,7 @@
 use super::super::board::Board;
 use super::super::color::{get_reverse_color, ColorType};
 use super::super::evaluator::abst::Evaluator;
+use super::super::moves::Move;
 use super::search_strategy::{self, EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
 use std::cmp::Ordering;
@@ -30,17 +31,17 @@ impl MinMaxSearchStrategy {
             return evaluator.evaluate(board, color);
         }
 
-        let moves = board.search_moves(color, true);
+        let moves: Vec<Move> = board.search_moves(color, true);
         if moves.is_empty() {
             return evaluator.evaluate(board, color);
         }
 
-        let mut best_score = f32::NEG_INFINITY;
+        let mut best_score: f32 = f32::NEG_INFINITY;
 
         for mv in &moves {
-            let mut new_board = board.clone();
+            let mut new_board: Board = board.clone();
             new_board.execute_move(mv);
-            let score = -self.minmax(
+            let score: f32 = -self.minmax(
                 &new_board,
                 get_reverse_color(color),
                 depth - 1,
@@ -71,29 +72,29 @@ impl SearchStrategy for MinMaxSearchStrategy {
         limit: Option<usize>,
         evaluator: Option<&dyn Evaluator>,
     ) -> Vec<EvaluationResult> {
-        let strategy = self;
-        let search_depth = depth;
+        let strategy: &MinMaxSearchStrategy = self;
+        let search_depth: u8 = depth;
         search_strategy::search_helper(
             board,
             color,
             evaluator,
             limit,
             move |board, color, evaluator, moves, limit| {
-                let mut nodes = 0u64;
+                let mut nodes: u64 = 0u64;
                 let mut evaluations: Vec<EvaluationResult> = moves
                     .iter()
                     .map(|mv| {
-                        let mut new_board = board.clone();
+                        let mut new_board: Board = board.clone();
                         new_board.execute_move(mv);
-                        let nodes_before = nodes;
-                        let score = -strategy.minmax(
+                        let nodes_before: u64 = nodes;
+                        let score: f32 = -strategy.minmax(
                             &new_board,
                             get_reverse_color(color),
                             search_depth.saturating_sub(1),
                             &mut nodes,
                             evaluator,
                         );
-                        let nodes_searched = nodes.saturating_sub(nodes_before);
+                        let nodes_searched: u64 = nodes.saturating_sub(nodes_before);
                         EvaluationResult {
                             score,
                             best_move: Some(mv.clone()),

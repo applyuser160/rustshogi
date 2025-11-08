@@ -5,9 +5,9 @@ use super::moves::Move;
 use super::piece::Piece;
 use super::random::Random;
 use num_cpus;
-use rayon::prelude::*;
-
 use pyo3::prelude::*;
+use rayon::prelude::*;
+use std::str::Chars;
 
 #[pyclass]
 #[derive(Clone)]
@@ -55,16 +55,16 @@ impl Game {
         if sfen == "-" {
             return;
         }
-        let mut current_sfen = sfen.chars();
+        let mut current_sfen: Chars = sfen.chars();
         while let Some(ch) = current_sfen.next() {
             if ch.is_ascii_digit() {
-                let consecutive = ch.to_digit(10).unwrap() as u8;
-                let piece = Piece::from_char(current_sfen.next().unwrap());
+                let consecutive: u8 = ch.to_digit(10).unwrap() as u8;
+                let piece: Piece = Piece::from_char(current_sfen.next().unwrap());
                 self.board
                     .hand
                     .add_pieces(piece.owner, piece.piece_type, consecutive);
             } else {
-                let piece = Piece::from_char(ch);
+                let piece: Piece = Piece::from_char(ch);
                 self.board.hand.add_piece(piece.owner, piece.piece_type);
             }
         }
@@ -95,10 +95,10 @@ impl Game {
     pub fn one_play(&mut self) -> Self {
         // used for benchmark only
         while !self.is_finished().0 {
-            let moves = self.board.search_moves(self.turn, true);
-            let amove = &moves[0];
+            let moves: Vec<Move> = self.board.search_moves(self.turn, true);
+            let amove: &Move = &moves[0];
             self.execute_move(amove);
-            let is_finish = self.is_finished();
+            let is_finish: (bool, ColorType) = self.is_finished();
             if is_finish.0 {
                 self.winner = is_finish.1;
                 break;
@@ -109,13 +109,13 @@ impl Game {
 
     fn perform_random_playout(&mut self, use_cache: bool) -> ColorType {
         while !self.is_finished().0 {
-            let moves = self.board.search_moves(self.turn, use_cache);
+            let moves: Vec<Move> = self.board.search_moves(self.turn, use_cache);
             if moves.is_empty() {
                 break;
             }
 
-            let mut random = Random::new(0, (moves.len() - 1) as u16);
-            let amove = &moves[random.generate_one() as usize];
+            let mut random: Random = Random::new(0, (moves.len() - 1) as u16);
+            let amove: &Move = &moves[random.generate_one() as usize];
             self.execute_move(amove);
         }
         self.is_finished().1
@@ -127,21 +127,21 @@ impl Game {
     }
 
     pub fn random_move_parallel(&self, num: usize, num_threads: usize) -> Vec<MctsResult> {
-        let pool = rayon::ThreadPoolBuilder::new()
+        let pool: rayon::ThreadPool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
             .unwrap();
 
-        let next_moves = self.board.search_moves(self.turn, true);
-        let next_move_count = next_moves.len();
+        let next_moves: Vec<Move> = self.board.search_moves(self.turn, true);
+        let next_move_count: usize = next_moves.len();
 
         if next_move_count == 0 {
             return vec![];
         }
 
         // Count how many simulations to run for each move.
-        let mut counts = vec![0; next_move_count];
-        let mut random_gen = Random::new(0, (next_move_count - 1) as u16);
+        let mut counts: Vec<i32> = vec![0; next_move_count];
+        let mut random_gen: Random = Random::new(0, (next_move_count - 1) as u16);
         for _ in 0..num {
             counts[random_gen.generate_one() as usize] += 1;
         }
@@ -163,7 +163,7 @@ impl Game {
                     }
 
                     // Clone and advance the game state ONCE for this move.
-                    let mut initial_game_clone = self.clone();
+                    let mut initial_game_clone: Game = self.clone();
                     initial_game_clone.execute_move(&next_moves[move_index]);
 
                     // Run simulations for this move sequentially within this parallel task.
@@ -187,20 +187,20 @@ impl Game {
     }
 
     pub fn generate_random_board(&mut self) -> Board {
-        let mut random = Random::new(0, 150);
-        let move_count = random.generate_one() as usize;
+        let mut random: Random = Random::new(0, 150);
+        let move_count: usize = random.generate_one() as usize;
 
         for _ in 0..move_count {
             if self.is_finished().0 {
                 break;
             }
-            let moves = self.board.search_moves(self.turn, true);
+            let moves: Vec<Move> = self.board.search_moves(self.turn, true);
             if moves.is_empty() {
                 break;
             }
 
-            let mut random = Random::new(0, (moves.len() - 1) as u16);
-            let amove = &moves[random.generate_one() as usize].clone();
+            let mut random: Random = Random::new(0, (moves.len() - 1) as u16);
+            let amove: &Move = &moves[random.generate_one() as usize].clone();
             self.execute_move(amove);
         }
         self.board.clone()
@@ -212,7 +212,7 @@ impl Game {
     #[pyo3(name = "random_move")]
     #[pyo3(signature = (num, threads = None))]
     pub fn python_random_move(&self, num: usize, threads: Option<usize>) -> Vec<MctsResult> {
-        let num_threads = threads.unwrap_or_else(num_cpus::get);
+        let num_threads: usize = threads.unwrap_or_else(num_cpus::get);
         self.random_move_parallel(num, num_threads)
     }
 

@@ -162,7 +162,7 @@ impl Default for Piece {
 
 impl Piece {
     pub fn convert_string(piece_type: PieceType, owner: ColorType) -> String {
-        let mut result = String::with_capacity(3);
+        let mut result: String = String::with_capacity(3);
         let piece_type_df: PieceType;
         if (piece_type as u8) > PROMOTE {
             result.push('+');
@@ -194,7 +194,7 @@ impl Piece {
     }
 
     fn convert_from_string(&mut self, character: char) {
-        let mut character = character;
+        let mut character: char = character;
         if character as u8 > 83 {
             self.owner = ColorType::White;
             character = character.to_ascii_uppercase();
@@ -230,13 +230,13 @@ impl Piece {
     }
 
     pub fn from_u8(num: u8) -> Self {
-        let owner = ColorType::from_u8((num & 0x40) >> 6);
-        let piece_type = PieceType::from_usize((num & 0x3F).into());
+        let owner: ColorType = ColorType::from_u8((num & 0x40) >> 6);
+        let piece_type: PieceType = PieceType::from_usize((num & 0x3F).into());
         Self { owner, piece_type }
     }
 
     pub fn from_char(character: char) -> Self {
-        let mut res = Self::new();
+        let mut res: Piece = Self::new();
         res.convert_from_string(character);
         res
     }
@@ -251,14 +251,14 @@ impl Piece {
             piece_str = str.chars().nth(0).unwrap();
         }
 
-        let mut res = Self::new();
+        let mut res: Piece = Self::new();
         res.convert_from_string(piece_str);
         res.piece_type = PieceType::from_usize(res.piece_type as usize + promote as usize);
         res
     }
 
     pub fn to_u8(&self) -> u8 {
-        let mut res = self.piece_type as u8;
+        let mut res: u8 = self.piece_type as u8;
         res += (self.owner as u8) << 6;
         res
     }
@@ -437,7 +437,7 @@ impl Piece {
     }
 
     pub fn able_pro_batch(piece_types: &[PieceType]) -> u16 {
-        let mut mask = 0u16;
+        let mut mask: u16 = 0u16;
         for (i, &pt) in piece_types.iter().enumerate().take(16) {
             if Self::able_pro(pt) {
                 mask |= 1 << i;
@@ -453,17 +453,17 @@ impl Piece {
 
         // PieceType is repr(usize) but fits in u8. We create a u8 array to load from.
         let piece_data: [u8; 16] = std::array::from_fn(|i| piece_types[i] as u8);
-        let pieces = _mm_loadu_si128(piece_data.as_ptr() as *const __m128i);
+        let pieces: __m128i = _mm_loadu_si128(piece_data.as_ptr() as *const __m128i);
 
         // Promotable pieces have IDs from Rook (3) to Pawn (8).
         // Check if 2 < piece_id < 9.
-        let lower_bound = _mm_set1_epi8(2);
-        let upper_bound = _mm_set1_epi8(9);
+        let lower_bound: __m128i = _mm_set1_epi8(2);
+        let upper_bound: __m128i = _mm_set1_epi8(9);
 
-        let gt_lower = _mm_cmpgt_epi8(pieces, lower_bound);
-        let lt_upper = _mm_cmplt_epi8(pieces, upper_bound);
+        let gt_lower: __m128i = _mm_cmpgt_epi8(pieces, lower_bound);
+        let lt_upper: __m128i = _mm_cmplt_epi8(pieces, upper_bound);
 
-        let in_range = _mm_and_si128(gt_lower, lt_upper);
+        let in_range: __m128i = _mm_and_si128(gt_lower, lt_upper);
 
         // Create a bitmask from the most significant bit of each 8-bit element.
         _mm_movemask_epi8(in_range) as u16

@@ -68,7 +68,7 @@ impl MctsResult {
             return 0.0;
         }
 
-        let current_turn_wins = if turn == ColorType::White {
+        let current_turn_wins: f64 = if turn == ColorType::White {
             self.white_wins as f64
         } else {
             self.black_wins as f64
