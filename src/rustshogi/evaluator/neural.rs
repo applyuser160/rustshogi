@@ -193,27 +193,23 @@ impl NeuralEvaluator {
         Ok(updated_count)
     }
 
-    /// Loss function (for AutodiffBackend) - Cross Entropy Loss
+    /// Loss function (for AutodiffBackend) - Categorical Cross Entropy Loss
     /// Suitable for predicting probability distributions (white_win_rate, black_win_rate, draw_rate)
-    /// Treats each element as an independent probability and calculates binary cross entropy
+    /// Works with softmax output where predictions sum to 1.0
+    /// Formula: -sum(target * log(pred)) / batch_size
     fn cross_entropy_loss_autodiff<B: AutodiffBackend>(
         predictions: &Tensor<B, 2>,
         targets: &Tensor<B, 2>,
     ) -> Tensor<B, 1> {
-        let epsilon: f64 = 1e-5;
+        let epsilon: f64 = 1e-8;
         // Clip predictions to [epsilon, 1.0 - epsilon] range for numerical stability
         let clipped_pred: Tensor<B, 2> = predictions.clone().clamp(epsilon, 1.0 - epsilon);
         // Calculate log of predictions
-        let log_pred: Tensor<B, 2> = clipped_pred.clone().log();
-        // Calculate log of (1 - pred) using tensor subtraction
-        let ones_pred: Tensor<B, 2> = Tensor::ones_like(&clipped_pred);
-        let one_minus_pred: Tensor<B, 2> = ones_pred - clipped_pred;
-        let log_one_minus_pred: Tensor<B, 2> = one_minus_pred.log();
-        // Binary cross entropy: -(target * log(pred) + (1 - target) * log(1 - pred))
-        let ones_target: Tensor<B, 2> = Tensor::ones_like(targets);
-        let neg_log_likelihood: Tensor<B, 2> =
-            targets.clone() * log_pred + (ones_target - targets.clone()) * log_one_minus_pred;
-        // Calculate average over the entire batch
+        let log_pred: Tensor<B, 2> = clipped_pred.log();
+        // Categorical cross entropy: -sum(target * log(pred)) / batch_size
+        // Sum over classes (dimension 1), then average over batch (dimension 0)
+        let neg_log_likelihood: Tensor<B, 2> = targets.clone() * log_pred;
+        // Sum over classes, then average over batch
         neg_log_likelihood.sum().neg() / (predictions.dims()[0] as f32)
     }
 
@@ -638,7 +634,7 @@ impl NeuralEvaluator {
             num_epochs,
             model_save_path: model_save_path.clone(),
             use_lr_scheduling: true,
-            use_early_stopping: true,
+            use_early_stopping: false,
             early_stopping_patience: 10,
         };
 
