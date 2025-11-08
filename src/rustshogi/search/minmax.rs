@@ -3,6 +3,7 @@ use super::super::color::{get_reverse_color, ColorType};
 use super::super::evaluator::abst::Evaluator;
 use super::search_strategy::{self, EvaluationResult, SearchStrategy};
 use pyo3::prelude::*;
+use std::cmp::Ordering;
 
 /// MinMax search algorithm
 #[pyclass]
@@ -67,41 +68,48 @@ impl SearchStrategy for MinMaxSearchStrategy {
         board: &Board,
         color: ColorType,
         depth: u8,
+        limit: Option<usize>,
         evaluator: Option<&dyn Evaluator>,
-    ) -> EvaluationResult {
+    ) -> Vec<EvaluationResult> {
         let strategy = self;
         let search_depth = depth;
         search_strategy::search_helper(
             board,
             color,
             evaluator,
-            move |board, color, evaluator, moves| {
-                let mut best_score = f32::NEG_INFINITY;
-                let mut best_move = moves[0].clone();
+            limit,
+            move |board, color, evaluator, moves, limit| {
                 let mut nodes = 0u64;
+                let mut evaluations: Vec<EvaluationResult> = moves
+                    .iter()
+                    .map(|mv| {
+                        let mut new_board = board.clone();
+                        new_board.execute_move(mv);
+                        let nodes_before = nodes;
+                        let score = -strategy.minmax(
+                            &new_board,
+                            get_reverse_color(color),
+                            search_depth.saturating_sub(1),
+                            &mut nodes,
+                            evaluator,
+                        );
+                        let nodes_searched = nodes.saturating_sub(nodes_before);
+                        EvaluationResult {
+                            score,
+                            best_move: Some(mv.clone()),
+                            nodes_searched,
+                        }
+                    })
+                    .collect();
 
-                for mv in &moves {
-                    let mut new_board = board.clone();
-                    new_board.execute_move(mv);
-                    let score = -strategy.minmax(
-                        &new_board,
-                        get_reverse_color(color),
-                        search_depth.saturating_sub(1),
-                        &mut nodes,
-                        evaluator,
-                    );
+                evaluations
+                    .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
 
-                    if score > best_score {
-                        best_score = score;
-                        best_move = mv.clone();
-                    }
+                if let Some(limit) = limit {
+                    evaluations.truncate(limit.min(evaluations.len()));
                 }
 
-                EvaluationResult {
-                    score: best_score,
-                    best_move: Some(best_move),
-                    nodes_searched: nodes,
-                }
+                evaluations
             },
         )
     }

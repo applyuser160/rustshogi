@@ -25,17 +25,19 @@ pub trait SearchStrategy {
     /// * `board` - The current board state
     /// * `color` - The color of the current player
     /// * `depth` - The search depth
+    /// * `limit` - Optional maximum number of moves to return, ordered by score
     /// * `evaluator` - The evaluation function (optional)
     ///
     /// # Returns
-    /// The evaluation result
+    /// A list of evaluation results sorted by descending score
     fn search(
         &self,
         board: &Board,
         color: ColorType,
         depth: u8,
+        limit: Option<usize>,
         evaluator: Option<&dyn Evaluator>,
-    ) -> EvaluationResult;
+    ) -> Vec<EvaluationResult>;
 }
 
 /// Get the default evaluation function
@@ -48,12 +50,12 @@ pub fn handle_no_moves(
     evaluator: &dyn Evaluator,
     board: &Board,
     color: ColorType,
-) -> EvaluationResult {
-    EvaluationResult {
+) -> Vec<EvaluationResult> {
+    vec![EvaluationResult {
         score: evaluator.evaluate(board, color),
         best_move: None,
         nodes_searched: 1,
-    }
+    }]
 }
 
 /// Common initialization process for search
@@ -62,10 +64,11 @@ pub fn search_helper<F>(
     board: &Board,
     color: ColorType,
     evaluator: Option<&dyn Evaluator>,
+    limit: Option<usize>,
     search_fn: F,
-) -> EvaluationResult
+) -> Vec<EvaluationResult>
 where
-    F: FnOnce(&Board, ColorType, &dyn Evaluator, Vec<Move>) -> EvaluationResult,
+    F: FnOnce(&Board, ColorType, &dyn Evaluator, Vec<Move>, Option<usize>) -> Vec<EvaluationResult>,
 {
     let default_evaluator;
     let evaluator_ref = match evaluator {
@@ -81,5 +84,5 @@ where
         return handle_no_moves(evaluator_ref, board, color);
     }
 
-    search_fn(board, color, evaluator_ref, moves)
+    search_fn(board, color, evaluator_ref, moves, limit)
 }
