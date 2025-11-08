@@ -65,7 +65,7 @@ impl NeuralEvaluator {
 
         println!("Generating {} random boards...", count);
 
-        for i in 0..count {
+        for i in 1..=count {
             let mut game = Game::new();
             game.input_board("startpos".to_string());
             let random_board = game.generate_random_board();
@@ -74,11 +74,11 @@ impl NeuralEvaluator {
             db.save_new_board(&board_sfen)?;
             saved_count += 1;
 
-            if (i + 1) % 100 == 0 {
+            if i % 100 == 0 {
                 let elapsed = start_time.elapsed();
                 println!(
                     "Generated and saved {} boards (elapsed time: {:.2}s)",
-                    i + 1,
+                    i,
                     elapsed.as_secs_f64()
                 );
             }
