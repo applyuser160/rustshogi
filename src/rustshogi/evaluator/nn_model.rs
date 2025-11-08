@@ -195,7 +195,7 @@ impl<B: Backend<FloatElem = f32>> NnModel<B> {
         // Output layer: last hidden layer -> (batch_size, 3)
         let raw_output = self.output_layer.forward(hidden);
 
-        // Apply Sigmoid (0.0–1.0) to all outputs
+        // Apply SoftMax to all outputs
         burn::tensor::activation::softmax(raw_output, 1)
     }
 
