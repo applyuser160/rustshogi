@@ -36,7 +36,10 @@ mod tests {
         let search = MinMaxSearchStrategy::new(10000);
 
         let evaluator = SimpleEvaluator::new();
-        let result = search.search(&board, ColorType::Black, 2, Some(&evaluator));
+        let results = search.search(&board, ColorType::Black, 2, None, Some(&evaluator));
+        let result = results
+            .first()
+            .expect("Expected at least one evaluation result");
 
         assert!(result.nodes_searched > 0, "No nodes were searched");
         assert!(result.best_move.is_some(), "No best move was found");
@@ -52,7 +55,10 @@ mod tests {
         let search = AlphaBetaSearchStrategy::new(10000);
 
         let evaluator = SimpleEvaluator::new();
-        let result = search.search(&board, ColorType::Black, 2, Some(&evaluator));
+        let results = search.search(&board, ColorType::Black, 2, None, Some(&evaluator));
+        let result = results
+            .first()
+            .expect("Expected at least one evaluation result");
 
         assert!(result.nodes_searched > 0, "No nodes were searched");
         assert!(result.best_move.is_some(), "No best move was found");
@@ -69,16 +75,30 @@ mod tests {
         let alphabeta_search = AlphaBetaSearchStrategy::new(50000);
         let evaluator = SimpleEvaluator::new();
 
-        let minmax_result = minmax_search.search(&board, ColorType::Black, 2, Some(&evaluator));
+        let minmax_result =
+            minmax_search.search(&board, ColorType::Black, 2, None, Some(&evaluator));
         let alphabeta_result =
-            alphabeta_search.search(&board, ColorType::Black, 2, Some(&evaluator));
+            alphabeta_search.search(&board, ColorType::Black, 2, None, Some(&evaluator));
 
         // Alpha-Beta searches fewer nodes than MinMax due to pruning
         assert!(
-            alphabeta_result.nodes_searched <= minmax_result.nodes_searched,
+            alphabeta_result
+                .iter()
+                .map(|result| result.nodes_searched)
+                .sum::<u64>()
+                <= minmax_result
+                    .iter()
+                    .map(|result| result.nodes_searched)
+                    .sum::<u64>(),
             "The number of nodes in Alpha-Beta is greater than in MinMax: Alpha-Beta={}, MinMax={}",
-            alphabeta_result.nodes_searched,
-            minmax_result.nodes_searched
+            alphabeta_result
+                .iter()
+                .map(|result| result.nodes_searched)
+                .sum::<u64>(),
+            minmax_result
+                .iter()
+                .map(|result| result.nodes_searched)
+                .sum::<u64>()
         );
 
         // The evaluation value will be the same if the same move is chosen
@@ -93,7 +113,10 @@ mod tests {
             Box::new(MinMaxSearchStrategy::new(10000));
         let search_engine = SearchEngine::new(strategy, Some(Box::new(evaluator)));
 
-        let result = search_engine.search(&board, ColorType::Black, 2);
+        let results = search_engine.search(&board, ColorType::Black, 2, None);
+        let result = results
+            .first()
+            .expect("Expected at least one evaluation result");
 
         assert!(result.nodes_searched > 0, "No nodes were searched");
         assert!(result.best_move.is_some(), "No best move was found");
@@ -105,17 +128,31 @@ mod tests {
         let search = AlphaBetaSearchStrategy::new(100000);
         let evaluator = SimpleEvaluator::new();
 
-        let result_depth_1 = search.search(&board, ColorType::Black, 1, Some(&evaluator));
-        let result_depth_2 = search.search(&board, ColorType::Black, 2, Some(&evaluator));
-        let result_depth_3 = search.search(&board, ColorType::Black, 3, Some(&evaluator));
+        let result_depth_1 = search.search(&board, ColorType::Black, 1, None, Some(&evaluator));
+        let result_depth_2 = search.search(&board, ColorType::Black, 2, None, Some(&evaluator));
+        let result_depth_3 = search.search(&board, ColorType::Black, 3, None, Some(&evaluator));
 
         // The deeper the search, the more nodes are searched
         assert!(
-            result_depth_1.nodes_searched <= result_depth_2.nodes_searched,
+            result_depth_1
+                .iter()
+                .map(|result| result.nodes_searched)
+                .sum::<u64>()
+                <= result_depth_2
+                    .iter()
+                    .map(|result| result.nodes_searched)
+                    .sum::<u64>(),
             "The number of nodes at depth 2 is abnormal"
         );
         assert!(
-            result_depth_2.nodes_searched <= result_depth_3.nodes_searched,
+            result_depth_2
+                .iter()
+                .map(|result| result.nodes_searched)
+                .sum::<u64>()
+                <= result_depth_3
+                    .iter()
+                    .map(|result| result.nodes_searched)
+                    .sum::<u64>(),
             "The number of nodes at depth 3 is abnormal"
         );
     }
@@ -139,7 +176,10 @@ mod tests {
         let search = AlphaBetaSearchStrategy::new(10000);
         let evaluator = SimpleEvaluator::new();
 
-        let result = search.search(&board, ColorType::Black, 3, Some(&evaluator));
+        let results = search.search(&board, ColorType::Black, 3, None, Some(&evaluator));
+        let result = results
+            .first()
+            .expect("Expected at least one evaluation result");
 
         assert!(result.nodes_searched > 0, "No nodes were searched");
         assert!(result.best_move.is_some(), "No best move was found");
@@ -155,7 +195,10 @@ mod tests {
         let search = AlphaBetaSearchStrategy::new(1000);
         let evaluator = SimpleEvaluator::new();
 
-        let result = search.search(&board, ColorType::Black, 1, Some(&evaluator));
+        let results = search.search(&board, ColorType::Black, 1, None, Some(&evaluator));
+        let result = results
+            .first()
+            .expect("Expected at least one evaluation result");
 
         // If there are legal moves, the best move will be found
         // If there are no legal moves, an evaluation value will be returned
