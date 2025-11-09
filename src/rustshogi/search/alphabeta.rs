@@ -27,6 +27,7 @@ impl AlphaBetaSearchStrategy {
         beta: f32,
         nodes: &mut u64,
         evaluator: &dyn Evaluator,
+        limit: Option<usize>,
     ) -> f32 {
         *nodes += 1;
 
@@ -34,9 +35,13 @@ impl AlphaBetaSearchStrategy {
             return evaluator.evaluate(board, color);
         }
 
-        let moves: Vec<Move> = board.search_moves(color, true);
+        let mut moves: Vec<Move> = board.search_moves(color, true);
         if moves.is_empty() {
             return evaluator.evaluate(board, color);
+        }
+
+        if let Some(limit) = limit {
+            moves.truncate(limit.min(moves.len()));
         }
 
         let mut alpha: f32 = alpha;
@@ -53,6 +58,7 @@ impl AlphaBetaSearchStrategy {
                 -alpha,
                 nodes,
                 evaluator,
+                limit,
             );
 
             best_score = best_score.max(score);
@@ -110,6 +116,7 @@ impl SearchStrategy for AlphaBetaSearchStrategy {
                         -alpha,
                         &mut nodes,
                         evaluator,
+                        limit,
                     );
 
                     let nodes_searched: u64 = nodes.saturating_sub(nodes_before);

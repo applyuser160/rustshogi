@@ -24,6 +24,7 @@ impl MinMaxSearchStrategy {
         depth: u8,
         nodes: &mut u64,
         evaluator: &dyn Evaluator,
+        limit: Option<usize>,
     ) -> f32 {
         *nodes += 1;
 
@@ -31,9 +32,13 @@ impl MinMaxSearchStrategy {
             return evaluator.evaluate(board, color);
         }
 
-        let moves: Vec<Move> = board.search_moves(color, true);
+        let mut moves: Vec<Move> = board.search_moves(color, true);
         if moves.is_empty() {
             return evaluator.evaluate(board, color);
+        }
+
+        if let Some(limit) = limit {
+            moves.truncate(limit.min(moves.len()));
         }
 
         let mut best_score: f32 = f32::NEG_INFINITY;
@@ -47,6 +52,7 @@ impl MinMaxSearchStrategy {
                 depth - 1,
                 nodes,
                 evaluator,
+                limit,
             );
             best_score = best_score.max(score);
         }
@@ -93,6 +99,7 @@ impl SearchStrategy for MinMaxSearchStrategy {
                             search_depth.saturating_sub(1),
                             &mut nodes,
                             evaluator,
+                            limit,
                         );
                         let nodes_searched: u64 = nodes.saturating_sub(nodes_before);
                         EvaluationResult {
