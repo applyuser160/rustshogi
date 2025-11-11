@@ -583,7 +583,7 @@ impl Board {
         for player_board_index in player_board.get_trues_iter() {
             let move_board: BitBoard = self.get_able_move_squares(player_board_index);
             vector_move.extend(move_board.get_trues_iter().map(|move_index| {
-                Move::from_standart(
+                Move::from_standard(
                     Address::from_number(player_board_index),
                     Address::from_number(move_index),
                     false,
@@ -593,7 +593,7 @@ impl Board {
             let pro_board: BitBoard =
                 self.get_able_pro_move_squares(player_board_index, move_board);
             vector_move.extend(pro_board.get_trues_iter().map(|move_index| {
-                Move::from_standart(
+                Move::from_standard(
                     Address::from_number(player_board_index),
                     Address::from_number(move_index),
                     true,
