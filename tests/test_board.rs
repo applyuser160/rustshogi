@@ -143,7 +143,7 @@ fn test_board_execute_move() {
     board.startpos();
     let from = Address::from_number(34);
     let to = Address::from_number(45);
-    board.execute_move(&Move::from_standart(from, to, false));
+    board.execute_move(&Move::from_standard(from, to, false));
     assert_eq!(board.get_piece_type_from_index(45), PieceType::Pawn);
     assert_eq!(board.get_color_type_from_index(45), ColorType::Black);
 }
@@ -154,7 +154,7 @@ fn test_board_is_finished() {
     board.startpos();
     let from = Address::from_number(93);
     let to = Address::from_number(16);
-    board.execute_move(&Move::from_standart(from, to, false));
+    board.execute_move(&Move::from_standard(from, to, false));
     let result = board.is_finished();
     assert_eq!(result.0, true);
     assert_eq!(result.1, ColorType::White);
@@ -278,7 +278,7 @@ fn test_board_sfen_with_hand() {
     // Move Black's pawn to White's pawn's position to capture it
     let from = Address::from_number(34); // Black's pawn
     let to = Address::from_number(45); // White's pawn's position
-    board.execute_move(&Move::from_standart(from, to, false));
+    board.execute_move(&Move::from_standard(from, to, false));
 
     let sfen = board.to_string();
     let parts: Vec<&str> = sfen.split(" ").collect();

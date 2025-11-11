@@ -13,13 +13,13 @@ fn test_moves_new() {
 }
 
 #[test]
-fn test_moves_from_standart() {
+fn test_moves_from_standard() {
     /* from   0d00011 0b00001011 */
     /* to     0d00092 0b01011100 */
     /* result 0d11787 0b0010111000001011 */
     let from = Address::from_number(11);
     let to = Address::from_number(92);
-    let mv = Move::from_standart(from, to, false);
+    let mv = Move::from_standard(from, to, false);
     assert_eq!(mv.value, 11787);
 }
 

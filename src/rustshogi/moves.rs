@@ -4,6 +4,7 @@ use crate::piece::Piece;
 use super::address;
 use super::piece;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyclass]
@@ -34,7 +35,7 @@ impl Move {
         self.value = (drop << 15) | (pro << 14) | (to << 7) | from;
     }
 
-    fn standart_constructor(
+    fn standard_constructor(
         &mut self,
         from: address::Address,
         to: address::Address,
@@ -56,9 +57,9 @@ impl Move {
         Self { value: 0 }
     }
 
-    pub fn from_standart(from: address::Address, to: address::Address, promote: bool) -> Self {
+    pub fn from_standard(from: address::Address, to: address::Address, promote: bool) -> Self {
         let mut res: Move = Self::new();
-        res.standart_constructor(from, to, promote);
+        res.standard_constructor(from, to, promote);
         res
     }
 
@@ -76,7 +77,7 @@ impl Move {
             res.drop_constructor(piece, to);
         } else {
             let from: Address = address::Address::from_string(csa);
-            res.standart_constructor(from, to, Self::is_promote(csa));
+            res.standard_constructor(from, to, Self::is_promote(csa));
         }
         res
     }
@@ -139,15 +140,21 @@ impl Move {
         to_address: Option<Address>,
         promote: bool,
         piece: Option<Piece>,
-    ) -> Self {
-        if let Some(csa) = csa {
-            Self::from_csa(csa.as_str())
-        } else if let Some(from) = from_address {
-            Self::from_standart(from, to_address.unwrap(), promote)
-        } else if let Some(piece) = piece {
-            Self::from_drop(piece, to_address.unwrap())
-        } else {
-            Self::new()
+    ) -> PyResult<Self> {
+        match (csa, from_address, to_address, piece) {
+            (Some(csa), _, _, _) => Ok(Self::from_csa(csa.as_str())),
+            (None, Some(from), Some(to), _) => Ok(Self::from_standard(from, to, promote)),
+            (None, Some(_), None, _) => Err(PyValueError::new_err(
+                "to_address must be provided when from_address is set",
+            )),
+            (None, None, Some(to), Some(piece)) => Ok(Self::from_drop(piece, to)),
+            (None, None, None, Some(_)) => Err(PyValueError::new_err(
+                "to_address must be provided when piece is set",
+            )),
+            (None, None, Some(_), None) => Err(PyValueError::new_err(
+                "to_address requires either from_address or piece",
+            )),
+            (None, None, None, None) => Ok(Self::new()),
         }
     }
 
